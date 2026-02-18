@@ -21,6 +21,23 @@ SEED_TEMPLATES = [
 def seed():
     db = SessionLocal()
     try:
+        # Create admin user if not exists
+        admin = db.query(User).filter(User.email == settings.ADMIN_EMAIL).first()
+        if not admin:
+            print(f"Creating admin user: {settings.ADMIN_EMAIL}")
+            admin = User(
+                email=settings.ADMIN_EMAIL,
+                hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
+                is_admin=True,
+                preferences={},
+                created_at=datetime.now(timezone.utc),
+            )
+            db.add(admin)
+            db.commit()
+            print("Admin user created.")
+        else:
+            print("Admin user already exists — skipping.")
+
         # Create demo user if not exists
         user = db.query(User).filter(User.email == settings.DEMO_USER_EMAIL).first()
         if not user:

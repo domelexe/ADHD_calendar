@@ -3,9 +3,9 @@ import { LoginPage } from './components/ui/LoginPage'
 import { AppLayout } from './components/ui/AppLayout'
 
 export default function App() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated())
+  const token = useAuthStore((s) => s.token)
 
-  if (!isAuthenticated) {
+  if (!token) {
     return <LoginPage />
   }
 

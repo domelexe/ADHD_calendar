@@ -348,7 +348,7 @@ export function EventModal({
                       className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
                         isSelected ? 'ring-2 scale-110' : 'hover:bg-gray-100'
                       }`}
-                      style={isSelected ? { backgroundColor: color + '22', color, ringColor: color } : {}}
+                      style={isSelected ? { backgroundColor: color + '22', color, outline: `2px solid ${color}` } : {}}
                     >
                       <IconRenderer icon={iconId} size={16} />
                     </button>

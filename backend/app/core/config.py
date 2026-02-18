@@ -1,3 +1,4 @@
+from typing import List
 from pydantic_settings import BaseSettings
 
 
@@ -9,6 +10,15 @@ class Settings(BaseSettings):
 
     DEMO_USER_EMAIL: str = "demo@adhd.local"
     DEMO_USER_PASSWORD: str = "demo1234"
+    ADMIN_EMAIL: str = "admin@adhd.local"
+    ADMIN_PASSWORD: str = "changeme_admin"
+
+    # CORS — lista originów oddzielona przecinkami
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
 
     class Config:
         env_file = ".env"

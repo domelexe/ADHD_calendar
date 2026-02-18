@@ -7,8 +7,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-adhd_calendar}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # port 5432 NIE jest wystawiony na zewnątrz — tylko między kontenerami
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-adhd}"]
       interval: 5s
@@ -26,6 +25,9 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: 10080
       DEMO_USER_EMAIL: ${DEMO_USER_EMAIL:-demo@adhd.local}
       DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-demo1234}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@adhd.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme_admin}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
     depends_on:
       db:
         condition: service_healthy

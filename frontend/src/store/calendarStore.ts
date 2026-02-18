@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { startOfWeek, addWeeks, subWeeks, subDays } from 'date-fns'
+import { startOfWeek, addWeeks, subWeeks, addDays, subDays } from 'date-fns'
 import type { IconSetId } from '../lib/iconSets'
 
 // Ghost — podgląd eventu podczas dragu
@@ -45,6 +45,9 @@ interface CalendarState {
 
   nextWeek: () => void
   prevWeek: () => void
+  stepForward: (days: number) => void
+  stepBack: (days: number) => void
+  setWeekStart: (date: Date) => void
   goToToday: () => void
   setTemplate: (id: number | null) => void
   setDragGhost: (ghost: DragGhost | null) => void
@@ -75,6 +78,9 @@ export const useCalendarStore = create<CalendarState>()(
 
       nextWeek: () => set((s) => ({ weekStart: addWeeks(s.weekStart, 1) })),
       prevWeek: () => set((s) => ({ weekStart: subWeeks(s.weekStart, 1) })),
+      stepForward: (n) => set((s) => ({ weekStart: addDays(s.weekStart, n) })),
+      stepBack: (n) => set((s) => ({ weekStart: subDays(s.weekStart, n) })),
+      setWeekStart: (date) => set({ weekStart: date }),
       goToToday: () => {
         const { viewMode, firstDayOfWeek } = get()
         set({ weekStart: computeWeekStart(viewMode, firstDayOfWeek) })

@@ -10,3 +10,7 @@ export async function login(email: string, password: string): Promise<Token> {
   })
   return res.data
 }
+
+export async function register(email: string, password: string, inviteToken: string): Promise<void> {
+  await api.post('/auth/register', { email, password, invite_token: inviteToken })
+}

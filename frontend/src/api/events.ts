@@ -2,8 +2,10 @@ import { api } from './client'
 import { Event } from '../types'
 
 export const eventsApi = {
-  list: async (weekStart?: string): Promise<Event[]> => {
-    const params = weekStart ? { week_start: weekStart } : {}
+  list: async (weekStart?: string, days?: number): Promise<Event[]> => {
+    const params: Record<string, string | number> = {}
+    if (weekStart) params.week_start = weekStart
+    if (days) params.days = days
     const res = await api.get<Event[]>('/events', { params })
     return res.data
   },

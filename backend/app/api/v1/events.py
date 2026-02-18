@@ -32,6 +32,9 @@ class RecurringEventCreate(BaseModel):
 @router.get("", response_model=List[EventOut])
 def list_events(
     week_start: Optional[str] = Query(None, description="YYYY-MM-DD of week start"),
+    days: Optional[int] = Query(
+        None, description="Number of days to fetch (default 7)"
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -45,7 +48,8 @@ def list_events(
             start = datetime.fromisoformat(week_start).replace(tzinfo=timezone.utc)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid week_start format")
-        end = start + timedelta(days=7)
+        num_days = max(1, min(days, 31)) if days else 7
+        end = start + timedelta(days=num_days)
         q = q.filter(Event.start_datetime >= start, Event.start_datetime < end)
     return q.order_by(Event.start_datetime).all()
 

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDroppable, useDraggable } from '@dnd-kit/core'
-import { format, addDays, isSameDay, parseISO, isYesterday, isToday as isTodayFn } from 'date-fns'
+import { format, addDays, subDays, startOfDay, isSameDay, parseISO, isYesterday, isToday as isTodayFn } from 'date-fns'
 import { pl } from 'date-fns/locale'
 import { eventsApi } from '../../api/events'
 import { contactsApi } from '../../api/contacts'
@@ -99,11 +99,13 @@ function BgStrip({
   event,
   hourStart,
   onRightClick,
+  onDelete,
   iconSet,
 }: {
   event: Event
   hourStart: number
   onRightClick: (e: Event) => void
+  onDelete: (e: Event) => void
   iconSet?: import('../../lib/iconSets').IconSetId
 }) {
   const startDt = parseISO(event.start_datetime)
@@ -128,15 +130,36 @@ function BgStrip({
         ?? (e.currentTarget as HTMLElement).getBoundingClientRect()
       const offsetPx = e.clientY - blockRect.top
       grabOffsetMinRef.current = Math.max(0, (offsetPx / HOUR_HEIGHT) * 60)
-      listeners.onPointerDown?.(e)
+      listeners?.onPointerDown?.(e)
     },
   }
 
   const startMin = (startDt.getHours() - hourStart) * 60 + startDt.getMinutes()
   const top = (startMin / 60) * HOUR_HEIGHT
   const height = Math.max((durationMin / 60) * HOUR_HEIGHT, 24)
-  const color = event.activity_template?.color ?? '#6366f1'
-  const icon = event.activity_template?.icon ?? '📅'
+  const color = event.color ?? event.activity_template?.color ?? '#6366f1'
+  const icon = event.icon ?? event.activity_template?.icon ?? '📅'
+
+  const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null)
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current)
+    const mx = e.clientX; const my = e.clientY
+    tooltipTimerRef.current = setTimeout(() => setTooltip({ x: mx, y: my }), 400)
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    if (tooltipTimerRef.current) { clearTimeout(tooltipTimerRef.current); tooltipTimerRef.current = null }
+    setTooltip(null)
+  }, [])
+
+  useEffect(() => {
+    if (isDragging) {
+      setTooltip(null)
+      if (tooltipTimerRef.current) { clearTimeout(tooltipTimerRef.current); tooltipTimerRef.current = null }
+    }
+  }, [isDragging])
 
   return (
     <>
@@ -152,13 +175,16 @@ function BgStrip({
           borderRadius: '4px',
         }}
       />
-      {/* Wąski pasek klikalny — drag, right-click */}
+      {/* Wąski pasek klikalny — drag, right-click, middle-click delete */}
       <div
         ref={setNodeRef}
         {...combinedListeners}
         {...attributes}
         data-bg-block
+        onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); e.stopPropagation(); onDelete(event) } }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onRightClick(event) }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
         className="absolute z-[13] cursor-grab select-none overflow-hidden"
         style={{
           top: `${top}px`,
@@ -169,7 +195,6 @@ function BgStrip({
           backgroundColor: color,
           borderRadius: '4px',
         }}
-        title={event.title}
       >
         {height > 40 && (
           <div className="flex items-center justify-center h-full pointer-events-none">
@@ -177,6 +202,10 @@ function BgStrip({
           </div>
         )}
       </div>
+      {/* Tooltip — portal do body */}
+      {tooltip && !isDragging && (
+        <EventTooltip x={tooltip.x} y={tooltip.y} event={event} durationMin={durationMin} />
+      )}
     </>
   )
 }
@@ -205,7 +234,7 @@ function EventTooltip({
     ? `${hours}h`
     : `${mins}min`
 
-  const color = event.activity_template?.color ?? '#6366f1'
+  const color = event.color ?? event.activity_template?.color ?? '#6366f1'
   const desc = event.description?.trim() || event.activity_template?.description?.trim()
 
   return createPortal(
@@ -256,6 +285,7 @@ function EventBlock({
   columnRef,
   hourStart,
   onRightClick,
+  onDelete,
   onResizeEnd,
   iconSet,
   rightOffset = 4,
@@ -264,6 +294,7 @@ function EventBlock({
   columnRef: React.RefObject<HTMLDivElement>
   hourStart: number
   onRightClick: (e: Event) => void
+  onDelete: (e: Event) => void
   onResizeEnd: (event: Event, newDurationMin: number) => void
   iconSet?: import('../../lib/iconSets').IconSetId
   rightOffset?: number
@@ -278,8 +309,8 @@ function EventBlock({
   const displayDur = resizeDur ?? durationMin
   const height = Math.max((displayDur / 60) * HOUR_HEIGHT, 24)
 
-  const color = event.activity_template?.color ?? '#6366f1'
-  const icon = event.activity_template?.icon ?? '📅'
+  const color = event.color ?? event.activity_template?.color ?? '#6366f1'
+  const icon = event.icon ?? event.activity_template?.icon ?? '📅'
 
   const grabOffsetMinRef = useRef(0)
 
@@ -386,6 +417,7 @@ function EventBlock({
         {...combinedListeners}
         {...attributes}
         onContextMenu={handleContextMenu}
+        onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); onDelete(event) } }}
         onMouseEnter={handleMouseEnter}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
@@ -445,6 +477,7 @@ function EisenhowerCalendarBlock({
   columnRef,
   hourStart,
   onRightClick,
+  onDelete,
   onResizeEnd,
   iconSet,
   rightOffset = 4,
@@ -455,6 +488,7 @@ function EisenhowerCalendarBlock({
   columnRef: React.RefObject<HTMLDivElement>
   hourStart: number
   onRightClick: (e: Event) => void
+  onDelete: (e: Event) => void
   onResizeEnd: (event: Event, newDurationMin: number) => void
   iconSet?: import('../../lib/iconSets').IconSetId
   rightOffset?: number
@@ -482,6 +516,10 @@ function EisenhowerCalendarBlock({
 
   const grabOffsetMinRef = useRef(0)
 
+  // Tooltip state
+  const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null)
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `cal-event-${event.id}`,
     data: {
@@ -495,6 +533,8 @@ function EisenhowerCalendarBlock({
   const combinedListeners = {
     ...listeners,
     onPointerDown: (e: React.PointerEvent) => {
+      setTooltip(null)
+      if (tooltipTimerRef.current) { clearTimeout(tooltipTimerRef.current); tooltipTimerRef.current = null }
       const blockRect = (e.currentTarget as HTMLElement).getBoundingClientRect()
       const offsetPx = e.clientY - blockRect.top
       grabOffsetMinRef.current = Math.max(0, (offsetPx / HOUR_HEIGHT) * 60)
@@ -502,11 +542,31 @@ function EisenhowerCalendarBlock({
     },
   }
 
+  useEffect(() => {
+    if (isDragging) {
+      setTooltip(null)
+      if (tooltipTimerRef.current) { clearTimeout(tooltipTimerRef.current); tooltipTimerRef.current = null }
+    }
+  }, [isDragging])
+
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    setTooltip(null)
     onRightClick(event)
   }
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current)
+    const mx = e.clientX
+    const my = e.clientY
+    tooltipTimerRef.current = setTimeout(() => setTooltip({ x: mx, y: my }), 400)
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    if (tooltipTimerRef.current) { clearTimeout(tooltipTimerRef.current); tooltipTimerRef.current = null }
+    setTooltip(null)
+  }, [])
 
   // Resize handle
   const handleResizePointerDown = (e: React.PointerEvent) => {
@@ -582,11 +642,15 @@ function EisenhowerCalendarBlock({
   }
 
   return (
+    <>
     <div
       ref={setNodeRef}
       {...combinedListeners}
       {...attributes}
       onContextMenu={handleContextMenu}
+      onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); onDelete(event) } }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       className="absolute left-1 rounded-md overflow-hidden select-none z-10 transition-opacity"
       style={{
         top: `${top}px`,
@@ -678,6 +742,11 @@ function EisenhowerCalendarBlock({
         <div className="w-8 h-0.5 rounded-full transition-colors" style={{ backgroundColor: qConfig.color + '55' }} />
       </div>
     </div>
+    {/* Tooltip — portal do body */}
+    {tooltip && !isDragging && (
+      <EventTooltip x={tooltip.x} y={tooltip.y} event={event} durationMin={durationMin} />
+    )}
+    </>
   )
 }
 
@@ -693,6 +762,7 @@ function DayColumn({
   hourEnd,
   onSlotClick,
   onEventRightClick,
+  onEventDelete,
   onEventResizeEnd,
   iconSet,
   eisenhowerTasks,
@@ -708,6 +778,7 @@ function DayColumn({
   hourEnd: number
   onSlotClick: (date: Date, hour: number) => void
   onEventRightClick: (e: Event) => void
+  onEventDelete: (e: Event) => void
   onEventResizeEnd: (event: Event, newDurationMin: number) => void
   iconSet?: import('../../lib/iconSets').IconSetId
   eisenhowerTasks: EisenhowerTask[]
@@ -777,6 +848,7 @@ function DayColumn({
           event={ev}
           hourStart={hourStart}
           onRightClick={onEventRightClick}
+          onDelete={onEventDelete}
           iconSet={iconSet}
         />
       ))}
@@ -797,6 +869,7 @@ function DayColumn({
             columnRef={columnRef}
             hourStart={hourStart}
             onRightClick={onEventRightClick}
+            onDelete={onEventDelete}
             onResizeEnd={onEventResizeEnd}
             iconSet={iconSet}
             rightOffset={overlaps ? BG_STRIP_WIDTH + 4 : 4}
@@ -820,6 +893,7 @@ function DayColumn({
             columnRef={columnRef}
             hourStart={hourStart}
             onRightClick={onEventRightClick}
+            onDelete={onEventDelete}
             onResizeEnd={onEventResizeEnd}
             iconSet={iconSet}
             rightOffset={overlaps ? BG_STRIP_WIDTH + 4 : 4}
@@ -837,7 +911,7 @@ export function WeeklyCalendar() {
   const qc = useQueryClient()
   const now = useNow()
   const {
-    weekStart, nextWeek, prevWeek, goToToday,
+    weekStart, nextWeek, prevWeek, goToToday, setWeekStart,
     selectedTemplateId, dragGhost,
     viewMode,
     hourStart, hourEnd,
@@ -853,6 +927,24 @@ export function WeeklyCalendar() {
   const [bestiaryContactId, setBestiaryContactId] = useState<number | null>(null)
   const [bdPopover, setBdPopover] = useState<{ contacts: typeof contacts; rect: DOMRect } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const calendarWrapRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(1200)
+
+  // Mierz szerokość kontenera kalendarza (ResizeObserver)
+  useEffect(() => {
+    const el = calendarWrapRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      setContainerWidth(entry.contentRect.width)
+    })
+    ro.observe(el)
+    setContainerWidth(el.getBoundingClientRect().width)
+    return () => ro.disconnect()
+  }, [])
+
+  // Liczba widocznych dni — ile kolumn mieści się przy min. szerokości kolumny
+  const MIN_COL_PX = 160
+  const visibleDaysCount = Math.max(1, Math.min(8, Math.floor((containerWidth - 48) / MIN_COL_PX)))
 
   // Zamknij popover urodzin klikając poza nim
   useEffect(() => {
@@ -861,6 +953,14 @@ export function WeeklyCalendar() {
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [bdPopover])
+
+  const today = startOfDay(new Date())
+  // W trybie dynamicznym przy < 7 kolumnach: jeśli weekStart jest w przeszłości,
+  // zacznij od dziś żeby nie pokazywać wczoraj/początku tygodnia.
+  // W trybie statycznym zawsze zaczynamy od weekStart (wybrany pierwszy dzień tygodnia).
+  const daysStart = (viewMode === 'dynamic' && visibleDaysCount < 7 && weekStart < today)
+    ? today
+    : weekStart
 
   // Scroll poziomy kółkiem (tilt lewo/prawo) → zmiana tygodnia
   // Scroll pionowy → normalne przewijanie godzin
@@ -875,13 +975,13 @@ export function WeeklyCalendar() {
         const now = Date.now()
         if (now - lastTime < 400) return
         lastTime = now
-        if (e.deltaX > 0) nextWeek()
-        else prevWeek()
+        if (e.deltaX > 0) visibleDaysCount < 7 ? setWeekStart(addDays(daysStart, visibleDaysCount)) : nextWeek()
+        else visibleDaysCount < 7 ? setWeekStart(subDays(daysStart, visibleDaysCount)) : prevWeek()
       }
     }
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
-  }, [nextWeek, prevWeek])
+  }, [nextWeek, prevWeek, visibleDaysCount, daysStart, setWeekStart])
 
   // Klawisze strzałek: ←/→ → tydzień, ↑/↓ → scroll godzin
   useEffect(() => {
@@ -895,10 +995,10 @@ export function WeeklyCalendar() {
 
       if (e.key === 'ArrowLeft') {
         e.preventDefault()
-        prevWeek()
+        visibleDaysCount < 7 ? setWeekStart(subDays(daysStart, visibleDaysCount)) : prevWeek()
       } else if (e.key === 'ArrowRight') {
         e.preventDefault()
-        nextWeek()
+        visibleDaysCount < 7 ? setWeekStart(addDays(daysStart, visibleDaysCount)) : nextWeek()
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         el.scrollBy({ top: -80, behavior: 'smooth' })
@@ -909,10 +1009,9 @@ export function WeeklyCalendar() {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [nextWeek, prevWeek])
-
-  const weekStartStr = format(weekStart, 'yyyy-MM-dd')
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  }, [nextWeek, prevWeek, visibleDaysCount, daysStart, setWeekStart])
+  const weekStartStr = format(daysStart, 'yyyy-MM-dd')
+  const days = Array.from({ length: visibleDaysCount }, (_, i) => addDays(daysStart, i))
 
   // Etykieta dnia — w trybie dynamicznym: Wczoraj/Dziś/Jutro/poj. nazwa; w statycznym: skrót dnia tygodnia
   const dayLabel = (day: Date): string => {
@@ -925,8 +1024,8 @@ export function WeeklyCalendar() {
   }
 
   const { data: events = [] } = useQuery({
-    queryKey: ['events', weekStartStr],
-    queryFn: () => eventsApi.list(weekStartStr),
+    queryKey: ['events', weekStartStr, visibleDaysCount],
+    queryFn: () => eventsApi.list(weekStartStr, visibleDaysCount),
   })
 
   const { data: templates = [] } = useQuery({
@@ -998,7 +1097,7 @@ export function WeeklyCalendar() {
     events.filter((e) => isSameDay(parseISO(e.start_datetime), day))
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-white">
+    <div ref={calendarWrapRef} className="flex flex-col h-full min-h-0 bg-white">
       {/* Nawigacja — wycentrowana */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center px-4 py-3 border-b border-gray-100 shrink-0">
         {/* Lewa strona — pusty spacer */}
@@ -1006,15 +1105,15 @@ export function WeeklyCalendar() {
         {/* Środek — nawigacja tygodnia */}
         <div className="flex items-center gap-1">
           <button
-            onClick={prevWeek}
+            onClick={() => visibleDaysCount < 7 ? setWeekStart(subDays(daysStart, visibleDaysCount)) : prevWeek()}
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-600 text-lg font-light shrink-0"
           >‹</button>
           <span className="font-semibold text-gray-800 text-sm w-[210px] text-center shrink-0">
-            {format(weekStart, 'd MMMM', { locale: pl })} –{' '}
-            {format(addDays(weekStart, 6), 'd MMMM yyyy', { locale: pl })}
+            {format(daysStart, 'd MMMM', { locale: pl })} –{' '}
+            {format(addDays(daysStart, visibleDaysCount - 1), 'd MMMM yyyy', { locale: pl })}
           </span>
           <button
-            onClick={nextWeek}
+            onClick={() => visibleDaysCount < 7 ? setWeekStart(addDays(daysStart, visibleDaysCount)) : nextWeek()}
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-600 text-lg font-light shrink-0"
           >›</button>
         </div>
@@ -1042,10 +1141,13 @@ export function WeeklyCalendar() {
         ref={scrollContainerRef}
         className="flex-1 min-h-0 overflow-auto"
       >
-        <div className="min-w-[1160px]">
+        <div>
 
           {/* Nagłówki dni — sticky top */}
-          <div className="grid grid-cols-[48px_repeat(7,1fr)] border-b border-gray-100 sticky top-0 z-20 bg-white">
+          <div
+            className="grid border-b border-gray-100 sticky top-0 z-20 bg-white"
+            style={{ gridTemplateColumns: `48px repeat(${visibleDaysCount}, 1fr)` }}
+          >
             <div />
             {days.map((day, i) => {
               const isToday = isSameDay(day, new Date())
@@ -1079,7 +1181,7 @@ export function WeeklyCalendar() {
           </div>
 
           {/* Siatka z osią czasu i kolumnami dni */}
-          <div className="grid grid-cols-[48px_repeat(7,1fr)]">
+          <div className="grid" style={{ gridTemplateColumns: `48px repeat(${visibleDaysCount}, 1fr)` }}>
             {/* Oś czasu — sticky left */}
             <div className="border-r border-gray-100 sticky left-0 bg-white z-10">
               {Array.from({ length: hourEnd - hourStart }, (_, i) => (
@@ -1108,6 +1210,10 @@ export function WeeklyCalendar() {
                 onSlotClick={handleSlotClick}
                 iconSet={iconSet}
                 onEventRightClick={(ev) => setModalData({ mode: 'edit', event: ev })}
+                onEventDelete={async (ev) => {
+                  await eventsApi.delete(ev.id)
+                  qc.invalidateQueries({ queryKey: ['events'] })
+                }}
                 onEventResizeEnd={(ev, newDur) => {
                   const start = parseISO(ev.start_datetime)
                   const end = new Date(start.getTime() + newDur * 60000)
