@@ -1,0 +1,43 @@
+import { api } from './client'
+import { Event } from '../types'
+
+export const eventsApi = {
+  list: async (weekStart?: string): Promise<Event[]> => {
+    const params = weekStart ? { week_start: weekStart } : {}
+    const res = await api.get<Event[]>('/events', { params })
+    return res.data
+  },
+
+  create: async (data: Partial<Event>): Promise<Event> => {
+    const res = await api.post<Event>('/events', data)
+    return res.data
+  },
+
+  update: async (id: number, data: Partial<Event>): Promise<Event> => {
+    const res = await api.put<Event>(`/events/${id}`, data)
+    return res.data
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/events/${id}`)
+  },
+
+  createFromTask: async (taskId: number, data: Partial<Event>): Promise<Event> => {
+    const res = await api.post<Event>(`/events/from-task/${taskId}`, data)
+    return res.data
+  },
+
+  createRecurring: async (data: {
+    title: string
+    start_datetime: string
+    end_datetime: string
+    description?: string
+    location?: string
+    activity_template_id?: number
+    interval_days: number
+    occurrences: number
+  }): Promise<Event[]> => {
+    const res = await api.post<Event[]>('/events/recurring', data)
+    return res.data
+  },
+}

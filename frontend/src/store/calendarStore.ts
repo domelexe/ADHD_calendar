@@ -1,0 +1,124 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import { startOfWeek, addWeeks, subWeeks, subDays } from 'date-fns'
+import type { IconSetId } from '../lib/iconSets'
+
+// Ghost — podgląd eventu podczas dragu
+export interface DragGhost {
+  dayIndex: number
+  startHour: number
+  durationMin: number
+  color: string
+  icon: string
+  title: string
+}
+
+export type ScrollMode = 'vertical' | 'horizontal'
+
+/** Dynamiczny: zawsze zaczyna od wczoraj (dzień względem dziś)
+ *  Statyczny: klasyczny tydzień z wybranym pierwszym dniem */
+export type ViewMode = 'dynamic' | 'static'
+
+/** 0 = Nd, 1 = Pn, 2 = Wt, 3 = Śr, 4 = Czw, 5 = Pt, 6 = Sb */
+export type FirstDayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6
+
+/** Oblicza weekStart na podstawie trybu i ustawień */
+function computeWeekStart(viewMode: ViewMode, firstDayOfWeek: FirstDayOfWeek): Date {
+  if (viewMode === 'dynamic') {
+    return subDays(new Date(), 1) // wczoraj jako pierwszy dzień
+  }
+  return startOfWeek(new Date(), { weekStartsOn: firstDayOfWeek })
+}
+
+interface CalendarState {
+  weekStart: Date
+  selectedTemplateId: number | null
+  dragGhost: DragGhost | null
+  scrollMode: ScrollMode
+  viewMode: ViewMode
+  firstDayOfWeek: FirstDayOfWeek
+  hourStart: number   // godzina początku dnia (0-23)
+  hourEnd: number     // godzina końca dnia (1-24)
+  hideContactNotes: boolean  // ukryj notatki kontaktu za pinem
+  iconSet: IconSetId         // aktywna biblioteka ikon
+  templateOrder: number[]    // kolejność aktywności (tablica ID)
+
+  nextWeek: () => void
+  prevWeek: () => void
+  goToToday: () => void
+  setTemplate: (id: number | null) => void
+  setDragGhost: (ghost: DragGhost | null) => void
+  setScrollMode: (mode: ScrollMode) => void
+  setViewMode: (mode: ViewMode) => void
+  setFirstDayOfWeek: (day: FirstDayOfWeek) => void
+  setHourStart: (h: number) => void
+  setHourEnd: (h: number) => void
+  setHideContactNotes: (v: boolean) => void
+  setIconSet: (id: IconSetId) => void
+  setTemplateOrder: (ids: number[]) => void
+}
+
+export const useCalendarStore = create<CalendarState>()(
+  persist(
+    (set, get) => ({
+      weekStart: computeWeekStart('dynamic', 1), // domyślny tryb = dynamic = wczoraj
+      selectedTemplateId: null,
+      dragGhost: null,
+      scrollMode: 'vertical',
+      viewMode: 'dynamic',
+      firstDayOfWeek: 1,
+      hourStart: 8,
+      hourEnd: 22,
+      hideContactNotes: false,
+      iconSet: 'emoji' as IconSetId,
+      templateOrder: [],
+
+      nextWeek: () => set((s) => ({ weekStart: addWeeks(s.weekStart, 1) })),
+      prevWeek: () => set((s) => ({ weekStart: subWeeks(s.weekStart, 1) })),
+      goToToday: () => {
+        const { viewMode, firstDayOfWeek } = get()
+        set({ weekStart: computeWeekStart(viewMode, firstDayOfWeek) })
+      },
+      setTemplate: (id) => set({ selectedTemplateId: id }),
+      setDragGhost: (ghost) => set({ dragGhost: ghost }),
+      setScrollMode: (mode) => set({ scrollMode: mode }),
+      setViewMode: (mode) =>
+        set((s) => ({
+          viewMode: mode,
+          weekStart: computeWeekStart(mode, s.firstDayOfWeek),
+        })),
+      setFirstDayOfWeek: (day) =>
+        set((s) => ({
+          firstDayOfWeek: day,
+          weekStart: s.viewMode === 'static'
+            ? startOfWeek(new Date(), { weekStartsOn: day })
+            : s.weekStart,
+        })),
+      setHourStart: (h) => set({ hourStart: h }),
+      setHourEnd: (h) => set({ hourEnd: h }),
+      setHideContactNotes: (v) => set({ hideContactNotes: v }),
+      setIconSet: (id) => set({ iconSet: id }),
+      setTemplateOrder: (ids) => set({ templateOrder: ids }),
+    }),
+    {
+      name: 'adhd-calendar-settings',
+      // Persystujemy tylko ustawienia, nie stan tymczasowy
+      partialize: (s) => ({
+        scrollMode: s.scrollMode,
+        viewMode: s.viewMode,
+        firstDayOfWeek: s.firstDayOfWeek,
+        hourStart: s.hourStart,
+        hourEnd: s.hourEnd,
+        hideContactNotes: s.hideContactNotes,
+        iconSet: s.iconSet,
+        templateOrder: s.templateOrder,
+      }),
+      // Po rehydracji — przelicz weekStart na podstawie zapisanego viewMode
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.weekStart = computeWeekStart(state.viewMode, state.firstDayOfWeek)
+        }
+      },
+    }
+  )
+)
