@@ -1284,13 +1284,13 @@ export function WeeklyCalendar() {
           }
           onPin={
             modalData.mode === 'edit' && modalData.event
-              ? (weeksAhead) => {
+              ? (daysAhead) => {
                   const ev = modalData.event!
                   const start = parseISO(ev.start_datetime)
                   const end = parseISO(ev.end_datetime)
                   const durationMs = end.getTime() - start.getTime()
-                  const promises = Array.from({ length: weeksAhead }, (_, i) => {
-                    const newStart = new Date(start.getTime() + (i + 1) * 7 * 24 * 60 * 60 * 1000)
+                  const promises = Array.from({ length: daysAhead }, (_, i) => {
+                    const newStart = new Date(start.getTime() + (i + 1) * 24 * 60 * 60 * 1000)
                     const newEnd = new Date(newStart.getTime() + durationMs)
                     return eventsApi.create({
                       title: ev.title,
