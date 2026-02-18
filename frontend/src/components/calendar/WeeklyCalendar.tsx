@@ -244,7 +244,7 @@ function EventTooltip({
         .replace(/<\/p>/gi, '\n')
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<[^>]+>/g, '')
-        .replace(/\n{3,}/g, '\n\n')
+        .replace(/\n+/g, '\n')
         .trim()
     : undefined
 
