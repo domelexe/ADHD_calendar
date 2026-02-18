@@ -207,8 +207,14 @@ function TaskDetailModal({ task, onClose }: { task: EisenhowerTask; onClose: () 
         </div>
         <h3 className="text-white font-bold text-lg leading-snug">{task.title}</h3>
         {task.description && (
-          <p className="text-white/60 text-sm leading-relaxed">
-            {task.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}
+          <p className="text-white/60 text-sm leading-relaxed whitespace-pre-line">
+            {task.description
+              .replace(/<\/li>/gi, '\n')
+              .replace(/<\/p>/gi, '\n')
+              .replace(/<br\s*\/?>/gi, '\n')
+              .replace(/<[^>]+>/g, '')
+              .replace(/\n{3,}/g, '\n\n')
+              .trim()}
           </p>
         )}
         <div className="flex gap-2 pt-1">
