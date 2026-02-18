@@ -49,6 +49,11 @@ interface RichTextEditorProps {
 export function RichTextEditor({ value, onChange, accentColor, onCtrlEnter }: RichTextEditorProps) {
   // initialValue — ustawiamy tylko raz przy montowaniu, edytor jest uncontrolled
   const initialValue = useRef(value)
+  // Refy na callbacki — żeby useEditor nie miał stale closure
+  const onChangeRef = useRef(onChange)
+  const onCtrlEnterRef = useRef(onCtrlEnter)
+  useEffect(() => { onChangeRef.current = onChange }, [onChange])
+  useEffect(() => { onCtrlEnterRef.current = onCtrlEnter }, [onCtrlEnter])
 
   const editor = useEditor({
     extensions: [
@@ -66,12 +71,12 @@ export function RichTextEditor({ value, onChange, accentColor, onCtrlEnter }: Ri
     ],
     content: initialValue.current || '',
     onUpdate({ editor }) {
-      onChange(editor.getHTML())
+      onChangeRef.current(editor.getHTML())
     },
     editorProps: {
       handleKeyDown(_view, event) {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-          onCtrlEnter?.()
+          onCtrlEnterRef.current?.()
           return true
         }
         return false

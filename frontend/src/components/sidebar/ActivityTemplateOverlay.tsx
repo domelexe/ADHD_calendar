@@ -4,6 +4,7 @@ import { ActivityTemplate } from '../../types'
 import { useCalendarStore } from '../../store/calendarStore'
 import { getIconSetConfig } from '../../lib/iconSets'
 import { IconRenderer, formatIconId, isReactIcon } from '../ui/IconRenderer'
+import { DescriptionField } from '../ui/DescriptionField'
 
 const COLOR_OPTIONS = [
   '#6366f1', '#3b82f6', '#0ea5e9', '#06b6d4',
@@ -48,6 +49,7 @@ export function ActivityTemplateOverlay({ template, onSave, onDelete, onClose }:
   })
 
   const colorInputRef = useRef<HTMLInputElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
 
   // czy użytkownik wpisuje custom czas
   const isCustomDuration = !QUICK_DURATIONS.includes(form.default_duration)
@@ -72,7 +74,7 @@ export function ActivityTemplateOverlay({ template, onSave, onDelete, onClose }:
       style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
+      <div ref={modalRef} className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -268,20 +270,12 @@ export function ActivityTemplateOverlay({ template, onSave, onDelete, onClose }:
           </div>
 
           {/* Opis */}
-          <div className="relative">
-            <label className="absolute top-2 left-3 text-xs font-medium text-gray-400 pointer-events-none z-10">
-              Opis <span className="text-gray-300">(opcjonalnie)</span>
-            </label>
-            <textarea
-              placeholder="Notatki, wskazówki, cel..."
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              rows={3}
-              className="w-full border border-gray-200 rounded-xl px-3 pt-6 pb-2 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none transition-all resize-none"
-              onFocus={e => e.currentTarget.style.borderColor = form.color}
-              onBlur={e => e.currentTarget.style.borderColor = ''}
-            />
-          </div>
+          <DescriptionField
+            value={form.description}
+            onChange={(html) => setForm({ ...form, description: html })}
+            accentColor={form.color}
+            modalRef={modalRef}
+          />
         </div>
 
         {/* Footer */}
