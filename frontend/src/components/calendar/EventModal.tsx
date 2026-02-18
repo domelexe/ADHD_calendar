@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
 import { Event, ActivityTemplate } from '../../types'
 import { eventsApi } from '../../api/events'
@@ -261,19 +262,12 @@ export function EventModal({
             />
           </div>
 
-          {/* Opis */}
-          <div className="relative">
-            <label className="absolute top-2 left-3 text-xs font-medium text-gray-400 pointer-events-none">Opis</label>
-            <textarea
-              placeholder="Notatki, wskazówki..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full border border-gray-200 rounded-xl px-3 pt-6 pb-2 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none transition-all resize-none"
-              onFocus={e => e.currentTarget.style.borderColor = accentColor}
-              onBlur={e => e.currentTarget.style.borderColor = ''}
-            />
-          </div>
+          {/* Opis — klikalne pole otwierające duży edytor */}
+          <DescriptionField
+            value={description}
+            onChange={setDescription}
+            accentColor={accentColor}
+          />
 
           {/* ── Ikona + Kolor w jednym wierszu ── */}
           <div className="flex gap-3 items-start">
@@ -566,5 +560,136 @@ export function EventModal({
         </div>
       </div>
     </div>
+  )
+}
+
+// ── DescriptionField — klikalne pole otwierające duży edytor popup ────────────
+
+function DescriptionField({
+  value,
+  onChange,
+  accentColor,
+}: {
+  value: string
+  onChange: (v: string) => void
+  accentColor: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  function openEditor() {
+    setDraft(value)
+    setOpen(true)
+  }
+
+  function confirm() {
+    onChange(draft)
+    setOpen(false)
+  }
+
+  function cancel() {
+    setOpen(false)
+  }
+
+  // Fokus na textarea po otwarciu
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => textareaRef.current?.focus(), 50)
+    }
+  }, [open])
+
+  // Escape zamyka bez zapisywania
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancel()
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) confirm()
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, draft])
+
+  const preview = value.trim()
+  const lines = preview.split('\n').filter(Boolean)
+
+  return (
+    <>
+      {/* Podgląd — klikalne pole */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={openEditor}
+        onKeyDown={e => e.key === 'Enter' && openEditor()}
+        className="relative w-full border border-gray-200 rounded-xl px-3 pt-6 pb-2 text-sm text-gray-900 cursor-pointer hover:border-gray-300 transition-colors min-h-[72px]"
+        style={{ borderColor: open ? accentColor : '' }}
+      >
+        <span className="absolute top-2 left-3 text-xs font-medium text-gray-400">Opis</span>
+        {lines.length === 0 ? (
+          <span className="text-gray-300 text-sm">Notatki, wskazówki…</span>
+        ) : (
+          <div className="space-y-0.5">
+            {lines.slice(0, 4).map((line, i) => (
+              <div key={i} className="truncate text-sm text-gray-700">{line}</div>
+            ))}
+            {lines.length > 4 && (
+              <div className="text-xs text-gray-400">+{lines.length - 4} więcej…</div>
+            )}
+          </div>
+        )}
+        <span className="absolute bottom-2 right-3 text-xs text-gray-300">kliknij aby edytować</span>
+      </div>
+
+      {/* Popup — duży edytor */}
+      {open && createPortal(
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(2px)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) cancel() }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
+            style={{ maxHeight: '80vh' }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+              <span className="text-sm font-semibold text-gray-700">Opis wydarzenia</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Ctrl+Enter aby zapisać · Esc aby anulować</span>
+                <button onClick={cancel} className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-2">✕</button>
+              </div>
+            </div>
+
+            {/* Textarea */}
+            <textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              className="flex-1 w-full px-5 py-4 text-sm text-gray-900 resize-none focus:outline-none"
+              style={{ minHeight: '300px' }}
+              placeholder="Notatki, wskazówki, linki…"
+            />
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100">
+              <button
+                onClick={cancel}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={confirm}
+                className="px-4 py-2 text-sm text-white rounded-xl font-semibold transition-colors"
+                style={{ backgroundColor: accentColor }}
+              >
+                Zapisz opis
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
