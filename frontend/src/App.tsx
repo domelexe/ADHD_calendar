@@ -3,7 +3,7 @@ import { LoginPage } from './components/ui/LoginPage'
 import { AppLayout } from './components/ui/AppLayout'
 
 export default function App() {
-  const token = useAuthStore((s) => s.token)
+  const token = useAuthStore((s) => s.accessToken)
 
   if (!token) {
     return <LoginPage />
