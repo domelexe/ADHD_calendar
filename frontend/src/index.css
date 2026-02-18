@@ -39,6 +39,70 @@
   }
 }
 
+/* ── Tiptap WYSIWYG edytor ── */
+.tiptap-editor .ProseMirror {
+  padding: 12px 16px;
+  min-height: 200px;
+  outline: none;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #111827;
+}
+.tiptap-editor .ProseMirror p { margin: 0 0 0.25em; }
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #d1d5db;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+.tiptap-editor .ProseMirror strong { font-weight: 700; }
+.tiptap-editor .ProseMirror em { font-style: italic; }
+.tiptap-editor .ProseMirror u { text-decoration: underline; }
+.tiptap-editor .ProseMirror s { text-decoration: line-through; }
+.tiptap-editor .ProseMirror hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 8px 0;
+}
+.tiptap-editor .ProseMirror ul {
+  padding-left: 1.25em;
+  margin: 0.1em 0;
+}
+.tiptap-editor .ProseMirror li { margin: 0.1em 0; }
+
+/* Task list (checkboxy) */
+.tiptap-editor .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 3px 0;
+}
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label {
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+  user-select: none;
+}
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: #9ca3af;
+}
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
 /* ── Markdown prose w panelu opisu ── */
 .prose h1, .prose h2, .prose h3 {
   font-weight: 700;
