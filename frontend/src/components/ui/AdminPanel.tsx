@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { api } from '../../api/client'
 import {
   AdminUser,
   InviteToken,
@@ -11,7 +12,17 @@ import {
   adminDeleteInviteToken,
 } from '../../api/auth'
 
-type Tab = 'users' | 'tokens'
+interface AuditEntry {
+  id: number
+  user_id: number | null
+  user_email: string | null
+  action: string
+  detail: string | null
+  ip_address: string | null
+  created_at: string
+}
+
+type Tab = 'users' | 'tokens' | 'audit'
 
 export function AdminPanel({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('users')
@@ -41,7 +52,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
 
         {/* Tabs */}
         <div className="flex border-b border-gray-100 px-6">
-          {([['users', 'Użytkownicy'], ['tokens', 'Tokeny zaproszeń']] as [Tab, string][]).map(([id, label]) => (
+          {([['users', 'Użytkownicy'], ['tokens', 'Tokeny zaproszeń'], ['audit', 'Audit Log']] as [Tab, string][]).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -55,7 +66,9 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="overflow-y-auto flex-1">
-          {tab === 'users' ? <UsersTab /> : <TokensTab />}
+          {tab === 'users' && <UsersTab />}
+          {tab === 'tokens' && <TokensTab />}
+          {tab === 'audit' && <AuditTab />}
         </div>
       </div>
     </div>,
@@ -325,6 +338,92 @@ function TokensTab() {
           {tokens.length === 0 && (
             <p className="text-sm text-gray-400">Brak tokenów. Wygeneruj pierwszy.</p>
           )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Audit Log Tab ──────────────────────────────────────────────────────────────
+
+const ACTION_COLOR: Record<string, string> = {
+  LOGIN_SUCCESS: 'text-green-600 bg-green-50',
+  LOGIN_FAILURE: 'text-red-600 bg-red-50',
+  LOGOUT: 'text-gray-500 bg-gray-50',
+  TOKEN_REFRESH: 'text-blue-600 bg-blue-50',
+  TOKEN_REVOKE_ALL: 'text-orange-600 bg-orange-50',
+  REGISTER: 'text-indigo-600 bg-indigo-50',
+  PASSWORD_CHANGE: 'text-yellow-700 bg-yellow-50',
+  INVITE_CREATE: 'text-purple-600 bg-purple-50',
+  INVITE_DELETE: 'text-purple-400 bg-purple-50',
+  USER_UPDATE: 'text-blue-700 bg-blue-50',
+  USER_DELETE: 'text-red-700 bg-red-50',
+}
+
+function AuditTab() {
+  const [entries, setEntries] = useState<AuditEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [offset, setOffset] = useState(0)
+  const PAGE = 50
+
+  async function load(off = 0) {
+    setLoading(true)
+    try {
+      const res = await api.get(`/admin/audit-log?limit=${PAGE}&offset=${off}`)
+      setEntries(res.data)
+      setOffset(off)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load(0) }, [])
+
+  return (
+    <div className="p-6 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-400">Zdarzenia bezpieczeństwa — najnowsze pierwsze</p>
+        <button onClick={() => load(0)} className="text-xs text-indigo-600 hover:underline">Odśwież</button>
+      </div>
+
+      {loading ? (
+        <div className="text-sm text-gray-400">Ładowanie…</div>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            {entries.map(e => (
+              <div key={e.id} className="flex items-start gap-3 border border-gray-100 rounded-xl px-4 py-2.5 text-xs">
+                <span className={`shrink-0 px-2 py-0.5 rounded-full font-mono font-semibold text-[10px] ${ACTION_COLOR[e.action] ?? 'text-gray-600 bg-gray-100'}`}>
+                  {e.action}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-gray-700">{e.user_email ?? '—'}</span>
+                  {e.detail && <span className="text-gray-400 ml-2">{e.detail}</span>}
+                </div>
+                <div className="shrink-0 text-right text-gray-400 space-y-0.5">
+                  <div>{e.ip_address ?? '—'}</div>
+                  <div>{new Date(e.created_at).toLocaleString('pl-PL')}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-between pt-2">
+            <button
+              disabled={offset === 0}
+              onClick={() => load(Math.max(0, offset - PAGE))}
+              className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg disabled:opacity-30 hover:bg-gray-50"
+            >
+              ← Nowsze
+            </button>
+            <button
+              disabled={entries.length < PAGE}
+              onClick={() => load(offset + PAGE)}
+              className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg disabled:opacity-30 hover:bg-gray-50"
+            >
+              Starsze →
+            </button>
+          </div>
         </>
       )}
     </div>

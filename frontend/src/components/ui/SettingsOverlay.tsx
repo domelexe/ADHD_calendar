@@ -309,7 +309,7 @@ export function SettingsOverlay({ onClose }: { onClose: () => void }) {
               />
               <input
                 type="password"
-                placeholder="Nowe hasło (min. 8 znaków)"
+                placeholder="Nowe hasło (min. 8 zn., wielka litera, cyfra, znak specjalny)"
                 value={pwNew}
                 onChange={e => setPwNew(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"

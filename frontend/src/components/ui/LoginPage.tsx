@@ -5,7 +5,7 @@ import { login, register } from '../../api/auth'
 type Mode = 'login' | 'register'
 
 export function LoginPage() {
-  const setToken = useAuthStore((s) => s.setToken)
+  const setTokens = useAuthStore((s) => s.setTokens)
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -22,7 +22,7 @@ export function LoginPage() {
     try {
       if (mode === 'login') {
         const token = await login(email, password)
-        setToken(token.access_token)
+        setTokens(token.access_token, token.refresh_token)
       } else {
         await register(email, password, inviteToken)
         setSuccess('Konto utworzone! Możesz się teraz zalogować.')

@@ -2,8 +2,10 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 interface AuthState {
-  token: string | null
-  setToken: (token: string) => void
+  accessToken: string | null
+  refreshToken: string | null
+  setTokens: (accessToken: string, refreshToken: string) => void
+  setAccessToken: (accessToken: string) => void
   logout: () => void
   isAuthenticated: () => boolean
 }
@@ -11,16 +13,27 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      token: null,
-      setToken: (token) => {
-        localStorage.setItem('access_token', token)
-        set({ token })
+      accessToken: null,
+      refreshToken: null,
+
+      setTokens: (accessToken, refreshToken) => {
+        localStorage.setItem('access_token', accessToken)
+        localStorage.setItem('refresh_token', refreshToken)
+        set({ accessToken, refreshToken })
       },
+
+      setAccessToken: (accessToken) => {
+        localStorage.setItem('access_token', accessToken)
+        set({ accessToken })
+      },
+
       logout: () => {
         localStorage.removeItem('access_token')
-        set({ token: null })
+        localStorage.removeItem('refresh_token')
+        set({ accessToken: null, refreshToken: null })
       },
-      isAuthenticated: () => !!get().token,
+
+      isAuthenticated: () => !!get().accessToken,
     }),
     { name: 'auth-store' },
   ),

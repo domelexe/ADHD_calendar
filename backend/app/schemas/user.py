@@ -32,6 +32,18 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class TokenPair(BaseModel):
+    """Zwracany przy logowaniu — access + refresh token."""
+
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
 class InviteTokenOut(BaseModel):
     token: str
     used: bool
@@ -54,6 +66,19 @@ class AdminUpdateUser(BaseModel):
     email: Optional[str] = None
     is_admin: Optional[bool] = None
     new_password: Optional[str] = None
+
+
+class AuditLogOut(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    user_email: Optional[str] = None
+    action: str
+    detail: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class UserOutAdmin(BaseModel):

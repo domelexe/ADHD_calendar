@@ -1,11 +1,16 @@
 import { api } from './client'
-import { Token } from '../types'
 
-export async function login(email: string, password: string): Promise<Token> {
+export interface TokenPair {
+  access_token: string
+  refresh_token: string
+  token_type: string
+}
+
+export async function login(email: string, password: string): Promise<TokenPair> {
   const form = new FormData()
   form.append('username', email)
   form.append('password', password)
-  const res = await api.post<Token>('/auth/token', form, {
+  const res = await api.post<TokenPair>('/auth/token', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
   return res.data
