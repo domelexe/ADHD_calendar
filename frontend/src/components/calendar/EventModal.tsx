@@ -131,7 +131,12 @@ export function EventModal({
   const [pinCustomVal, setPinCustomVal] = useState<string>('')
   const [pinShowCustom, setPinShowCustom] = useState(false)
   const [pinShowDate, setPinShowDate] = useState(false)
-  const [pinDateVal, setPinDateVal] = useState<string>('')
+  const [pinDD, setPinDD] = useState('')
+  const [pinMM, setPinMM] = useState('')
+  const [pinYY, setPinYY] = useState('')
+  const [pinDateError, setPinDateError] = useState('')
+  const pinMMRef = useRef<HTMLInputElement>(null)
+  const pinYYRef = useRef<HTMLInputElement>(null)
   // tryb create: zapamiętaj config do zastosowania po zapisie
   const [pinCfgOnCreate, setPinCfgOnCreate] = useState<{ offsetDays?: number; repeatWeeks?: number } | null>(null)
   const pinPanelRef = useRef<HTMLDivElement>(null)
@@ -145,7 +150,7 @@ export function EventModal({
         setPinShowCustom(false)
         setPinShowDate(false)
         setPinCustomVal('')
-        setPinDateVal('')
+        setPinDD(''); setPinMM(''); setPinYY(''); setPinDateError('')
       }
     }
     document.addEventListener('mousedown', handler)
@@ -173,25 +178,34 @@ export function EventModal({
     }
   }
 
-  const handlePinDate = (dateStr: string) => {
-    if (!dateStr) return
-    const target = new Date(dateStr)
-    const eventStart = new Date(startDt)
-    // zerujemy godziny żeby liczyć tylko dni
+  const handlePinDate = () => {
+    setPinDateError('')
+    const dd = parseInt(pinDD), mm = parseInt(pinMM), yy = parseInt(pinYY)
+    // Walidacja — czy pola są wypełnione
+    if (!pinDD || !pinMM || !pinYY) { setPinDateError('Wypełnij wszystkie pola'); return }
+    // Walidacja — zakres
+    if (mm < 1 || mm > 12) { setPinDateError('Miesiąc: 1–12'); return }
+    if (dd < 1 || dd > 31) { setPinDateError('Dzień: 1–31'); return }
+    if (yy < 2024 || yy > 2099) { setPinDateError('Rok: 2024–2099'); return }
+    // Walidacja — czy data istnieje (np. 31 lutego)
+    const target = new Date(yy, mm - 1, dd)
+    if (target.getFullYear() !== yy || target.getMonth() !== mm - 1 || target.getDate() !== dd) {
+      setPinDateError('Ta data nie istnieje'); return
+    }
     target.setHours(0, 0, 0, 0)
+    const eventStart = new Date(startDt)
     eventStart.setHours(0, 0, 0, 0)
     const diffDays = Math.round((target.getTime() - eventStart.getTime()) / (24 * 60 * 60 * 1000))
-    if (diffDays <= 0) return
+    if (diffDays <= 0) { setPinDateError('Data musi być po dacie eventu'); return }
     if (pinMode === 'once') {
       handlePinSelect(diffDays)
     } else {
-      // tygodnie pełne do tej daty
       const weeks = Math.floor(diffDays / 7)
-      if (weeks <= 0) return
+      if (weeks <= 0) { setPinDateError('Za mało czasu na pełny tydzień'); return }
       handlePinSelect(weeks)
     }
     setPinShowDate(false)
-    setPinDateVal('')
+    setPinDD(''); setPinMM(''); setPinYY(''); setPinDateError('')
   }
 
   const handleSave = async () => {
@@ -510,7 +524,7 @@ export function EventModal({
                 <div className="border-t border-gray-100 pt-2 mt-1 space-y-1">
                   {!pinShowDate ? (
                     <button
-                      onClick={() => { setPinShowDate(true); setPinShowCustom(false) }}
+                      onClick={() => { setPinShowDate(true); setPinShowCustom(false); setPinDateError('') }}
                       className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50 rounded-lg transition-colors"
                     >
                       <span className="inline-flex items-center gap-1">
@@ -519,24 +533,69 @@ export function EventModal({
                       </span>
                     </button>
                   ) : (
-                    <div className="flex items-center gap-2 px-3 pt-1">
-                      <input
-                        type="date"
-                        autoFocus
-                        min={format(new Date(new Date(startDt).getTime() + 24*60*60*1000), 'yyyy-MM-dd')}
-                        value={pinDateVal}
-                        onChange={(e) => setPinDateVal(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handlePinDate(pinDateVal) }}
-                        className="flex-1 border border-indigo-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                      />
-                      <button
-                        onClick={() => handlePinDate(pinDateVal)}
-                        disabled={!pinDateVal}
-                        className="text-xs text-white rounded-lg px-3 py-1 disabled:opacity-40 transition-colors"
-                        style={{ backgroundColor: accentColor }}
-                      >
-                        OK
-                      </button>
+                    <div className="px-3 pt-1 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        {/* DD */}
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={2}
+                          autoFocus
+                          placeholder="DD"
+                          value={pinDD}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/\D/g, '').slice(0, 2)
+                            setPinDD(v); setPinDateError('')
+                            if (v.length === 2) pinMMRef.current?.focus()
+                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handlePinDate() }}
+                          className="w-10 border border-indigo-300 rounded-lg px-1.5 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                        />
+                        <span className="text-gray-400 text-xs">/</span>
+                        {/* MM */}
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={2}
+                          ref={pinMMRef}
+                          placeholder="MM"
+                          value={pinMM}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/\D/g, '').slice(0, 2)
+                            setPinMM(v); setPinDateError('')
+                            if (v.length === 2) pinYYRef.current?.focus()
+                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handlePinDate() }}
+                          className="w-10 border border-indigo-300 rounded-lg px-1.5 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                        />
+                        <span className="text-gray-400 text-xs">/</span>
+                        {/* YYYY */}
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={4}
+                          ref={pinYYRef}
+                          placeholder="RRRR"
+                          value={pinYY}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/\D/g, '').slice(0, 4)
+                            setPinYY(v); setPinDateError('')
+                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handlePinDate() }}
+                          className="w-14 border border-indigo-300 rounded-lg px-1.5 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                        />
+                        <button
+                          onClick={handlePinDate}
+                          disabled={!pinDD || !pinMM || !pinYY}
+                          className="text-xs text-white rounded-lg px-3 py-1 disabled:opacity-40 transition-colors ml-1"
+                          style={{ backgroundColor: accentColor }}
+                        >
+                          OK
+                        </button>
+                      </div>
+                      {pinDateError && (
+                        <p className="text-xs text-red-500 px-1">{pinDateError}</p>
+                      )}
                     </div>
                   )}
                 </div>
