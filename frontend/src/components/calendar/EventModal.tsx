@@ -641,50 +641,57 @@ function DescriptionField({
         <span className="absolute bottom-2 right-3 text-xs text-gray-300">kliknij aby edytować</span>
       </div>
 
-      {/* Popup — duży edytor */}
+      {/* Popup — duży edytor po prawej stronie modalu eventu */}
       {open && createPortal(
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-          style={{ backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(2px)' }}
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 pointer-events-none"
           onClick={(e) => { if (e.target === e.currentTarget) cancel() }}
         >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
-            style={{ maxHeight: '80vh' }}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-              <span className="text-sm font-semibold text-gray-700">Opis wydarzenia</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">Ctrl+Enter aby zapisać · Esc aby anulować</span>
-                <button onClick={cancel} className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-2">✕</button>
+          {/* Wrapper wyrównany do środka jak modal eventu, ale poszerzony o panel boczny */}
+          <div className="flex items-stretch gap-3 pointer-events-auto" style={{ maxHeight: '80vh' }}>
+
+            {/* Wypełniacz — taka sama szerokość jak modal eventu (max-w-md = 448px) */}
+            <div style={{ width: '448px', flexShrink: 0 }} />
+
+            {/* Panel opisu — po prawej */}
+            <div
+              className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+              style={{ width: '380px', maxHeight: '80vh' }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                <span className="text-sm font-semibold text-gray-700">Opis wydarzenia</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 hidden sm:block">Ctrl+Enter · Esc</span>
+                  <button onClick={cancel} className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1">✕</button>
+                </div>
               </div>
-            </div>
 
-            {/* Textarea */}
-            <textarea
-              ref={textareaRef}
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              className="flex-1 w-full px-5 py-4 text-sm text-gray-900 resize-none focus:outline-none"
-              style={{ minHeight: '300px' }}
-              placeholder="Notatki, wskazówki, linki…"
-            />
+              {/* Textarea */}
+              <textarea
+                ref={textareaRef}
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                className="flex-1 w-full px-5 py-4 text-sm text-gray-900 resize-none focus:outline-none"
+                placeholder="Notatki, wskazówki, linki…"
+              />
 
-            {/* Footer */}
-            <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100">
-              <button
-                onClick={cancel}
-                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                Anuluj
-              </button>
-              <button
-                onClick={confirm}
-                className="px-4 py-2 text-sm text-white rounded-xl font-semibold transition-colors"
-                style={{ backgroundColor: accentColor }}
-              >
-                Zapisz opis
-              </button>
+              {/* Footer */}
+              <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100">
+                <button
+                  onClick={cancel}
+                  className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  Anuluj
+                </button>
+                <button
+                  onClick={confirm}
+                  className="px-4 py-2 text-sm text-white rounded-xl font-semibold transition-colors"
+                  style={{ backgroundColor: accentColor }}
+                >
+                  Zapisz opis
+                </button>
+              </div>
             </div>
           </div>
         </div>,
