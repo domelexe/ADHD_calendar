@@ -1284,31 +1284,35 @@ export function WeeklyCalendar() {
           }
           onPin={
             modalData.mode === 'edit' && modalData.event
-              ? (cfg) => {
+              ? async (cfg) => {
                   const ev = modalData.event!
-                  const start = parseISO(ev.start_datetime)
-                  const end = parseISO(ev.end_datetime)
-                  const durationMs = end.getTime() - start.getTime()
-                  let offsets: number[] = []
                   if (cfg.offsetDays !== undefined) {
-                    offsets = [cfg.offsetDays]
-                  } else if (cfg.repeatWeeks !== undefined) {
-                    const count = cfg.repeatWeeks === 0 ? 52 * 10 : cfg.repeatWeeks
-                    offsets = Array.from({ length: count }, (_, i) => (i + 1) * 7)
-                  }
-                  const promises = offsets.map((days) => {
-                    const newStart = new Date(start.getTime() + days * 24 * 60 * 60 * 1000)
-                    const newEnd = new Date(newStart.getTime() + durationMs)
-                    return eventsApi.create({
+                    const newStart = new Date(parseISO(ev.start_datetime).getTime() + cfg.offsetDays * 24 * 60 * 60 * 1000)
+                    const newEnd   = new Date(parseISO(ev.end_datetime).getTime()   + cfg.offsetDays * 24 * 60 * 60 * 1000)
+                    await eventsApi.create({
                       title: ev.title,
                       start_datetime: newStart.toISOString(),
                       end_datetime: newEnd.toISOString(),
                       activity_template_id: ev.activity_template_id,
                       description: ev.description,
                       location: ev.location,
+                      color: ev.color,
+                      icon: ev.icon,
                     } as Parameters<typeof eventsApi.create>[0])
-                  })
-                  Promise.all(promises).then(() => qc.invalidateQueries({ queryKey: ['events'] }))
+                  } else if (cfg.repeatWeeks !== undefined) {
+                    const count = cfg.repeatWeeks === 0 ? 52 * 10 : cfg.repeatWeeks
+                    await eventsApi.createRecurring({
+                      title: ev.title,
+                      start_datetime: new Date(parseISO(ev.start_datetime).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                      end_datetime:   new Date(parseISO(ev.end_datetime).getTime()   + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                      interval_days: 7,
+                      occurrences: count,
+                      activity_template_id: ev.activity_template_id,
+                      description: ev.description,
+                      location: ev.location,
+                    })
+                  }
+                  qc.invalidateQueries({ queryKey: ['events'] })
                 }
               : undefined
           }

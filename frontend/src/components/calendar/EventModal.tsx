@@ -224,31 +224,35 @@ export function EventModal({
 
     if (mode === 'create' && pinCfgOnCreate !== null) {
       const created = await eventsApi.create(data as Parameters<typeof eventsApi.create>[0])
-      const durationMs = new Date(created.end_datetime).getTime() - new Date(created.start_datetime).getTime()
-      const start = new Date(created.start_datetime)
       const { offsetDays, repeatWeeks } = pinCfgOnCreate
-      let offsets: number[] = []
       if (offsetDays !== undefined) {
-        // jednorazowo — jedna kopia za X dni
-        offsets = [offsetDays]
-      } else if (repeatWeeks !== undefined) {
-        // co tydzień — repeatWeeks === 0 oznacza "na zawsze" (10 lat)
-        const count = repeatWeeks === 0 ? 52 * 10 : repeatWeeks
-        offsets = Array.from({ length: count }, (_, i) => (i + 1) * 7)
-      }
-      const promises = offsets.map((days) => {
-        const newStart = new Date(start.getTime() + days * 24 * 60 * 60 * 1000)
-        const newEnd = new Date(newStart.getTime() + durationMs)
-        return eventsApi.create({
+        // jednorazowo — 1 kopia przesunięta o offsetDays dni
+        const newStart = new Date(new Date(created.start_datetime).getTime() + offsetDays * 24 * 60 * 60 * 1000)
+        const newEnd   = new Date(new Date(created.end_datetime).getTime()   + offsetDays * 24 * 60 * 60 * 1000)
+        await eventsApi.create({
           title: created.title,
           start_datetime: newStart.toISOString(),
           end_datetime: newEnd.toISOString(),
           activity_template_id: created.activity_template_id,
           description: created.description,
           location: created.location,
+          color: created.color,
+          icon: created.icon,
         } as Parameters<typeof eventsApi.create>[0])
-      })
-      await Promise.all(promises)
+      } else if (repeatWeeks !== undefined) {
+        // co tydzień — jeden request do /events/recurring
+        const count = repeatWeeks === 0 ? 52 * 10 : repeatWeeks
+        await eventsApi.createRecurring({
+          title: created.title,
+          start_datetime: new Date(new Date(created.start_datetime).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          end_datetime:   new Date(new Date(created.end_datetime).getTime()   + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          interval_days: 7,
+          occurrences: count,
+          activity_template_id: created.activity_template_id,
+          description: created.description,
+          location: created.location,
+        })
+      }
       qc.invalidateQueries({ queryKey: ['events'] })
       onClose()
     } else {
@@ -483,7 +487,7 @@ export function EventModal({
                 <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs mb-1">
                   <button
                     type="button"
-                    onClick={() => { setPinMode('once'); setPinShowCustom(false); setPinCustomVal('') }}
+                    onClick={() => { setPinMode('once'); setPinShowCustom(false); setPinShowDate(false); setPinCustomVal(''); setPinDD(''); setPinMM(''); setPinYY(''); setPinDateError('') }}
                     className="flex-1 py-1.5 transition-colors"
                     style={pinMode === 'once' ? { backgroundColor: accentColor, color: 'white' } : { color: '#6b7280' }}
                   >
@@ -491,7 +495,7 @@ export function EventModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setPinMode('weekly'); setPinShowCustom(false); setPinCustomVal('') }}
+                    onClick={() => { setPinMode('weekly'); setPinShowCustom(false); setPinShowDate(false); setPinCustomVal(''); setPinDD(''); setPinMM(''); setPinYY(''); setPinDateError('') }}
                     className="flex-1 py-1.5 transition-colors"
                     style={pinMode === 'weekly' ? { backgroundColor: accentColor, color: 'white' } : { color: '#6b7280' }}
                   >
