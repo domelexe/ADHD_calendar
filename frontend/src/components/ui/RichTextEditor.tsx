@@ -4,7 +4,7 @@ import Underline from '@tiptap/extension-underline'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Placeholder from '@tiptap/extension-placeholder'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 // ── Toolbar button helper ─────────────────────────────────────────────────────
 function ToolBtn({
@@ -47,6 +47,9 @@ interface RichTextEditorProps {
 }
 
 export function RichTextEditor({ value, onChange, accentColor, onCtrlEnter }: RichTextEditorProps) {
+  // initialValue — ustawiamy tylko raz przy montowaniu, edytor jest uncontrolled
+  const initialValue = useRef(value)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -61,7 +64,7 @@ export function RichTextEditor({ value, onChange, accentColor, onCtrlEnter }: Ri
       TaskItem.configure({ nested: false }),
       Placeholder.configure({ placeholder: 'Notatki, zadania, linki…' }),
     ],
-    content: value || '',
+    content: initialValue.current || '',
     onUpdate({ editor }) {
       onChange(editor.getHTML())
     },
@@ -76,11 +79,17 @@ export function RichTextEditor({ value, onChange, accentColor, onCtrlEnter }: Ri
     },
   })
 
-  // Synchronizuj zewnętrzną wartość (np. przy otwarciu panelu)
+  // Synchronizuj tylko gdy panel jest remountowany z nową wartością zewnętrzną
+  // (np. otwarcie drugiego eventu bez odmontowania komponentu — w praktyce rzadkie,
+  // ale zabezpieczamy: compare ref z aktualnym value)
   useEffect(() => {
     if (!editor) return
-    if (editor.getHTML() !== value) {
-      editor.commands.setContent(value || '', false)
+    if (value !== initialValue.current) {
+      initialValue.current = value
+      // Ustaw nową treść tylko jeśli edytor ma inną (nie nadpisuj tego co użytkownik pisze)
+      if (editor.getHTML() !== value) {
+        editor.commands.setContent(value || '', false)
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
@@ -187,7 +196,4 @@ export function RichTextEditor({ value, onChange, accentColor, onCtrlEnter }: Ri
   )
 }
 
-// ── Helper: czy HTML to pusty edytor ─────────────────────────────────────────
-export function isEmptyHtml(html: string): boolean {
-  return !html || html === '<p></p>' || html.trim() === ''
-}
+

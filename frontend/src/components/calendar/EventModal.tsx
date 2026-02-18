@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
-import { RichTextEditor, isEmptyHtml } from '../ui/RichTextEditor'
+import { RichTextEditor } from '../ui/RichTextEditor'
+
+function isEmptyHtml(html: string): boolean {
+  return !html || html === '<p></p>' || html.trim() === ''
+}
 import { Event, ActivityTemplate } from '../../types'
 import { eventsApi } from '../../api/events'
 import { useQueryClient } from '@tanstack/react-query'
@@ -585,6 +589,7 @@ function DescriptionField({
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
+  const draftRef = useRef(value)
   const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({})
 
   const computePosition = useCallback(() => {
@@ -609,12 +614,13 @@ function DescriptionField({
   }, [modalRef])
 
   function openEditor() {
+    draftRef.current = value
     setDraft(value)
     setOpen(true)
   }
 
   function confirm() {
-    onChange(draft)
+    onChange(draftRef.current)
     setOpen(false)
   }
 
@@ -690,7 +696,7 @@ function DescriptionField({
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <RichTextEditor
                 value={draft}
-                onChange={setDraft}
+                onChange={(html) => { draftRef.current = html; setDraft(html) }}
                 accentColor={accentColor}
                 onCtrlEnter={confirm}
               />
