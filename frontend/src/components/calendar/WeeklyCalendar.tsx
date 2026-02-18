@@ -1284,13 +1284,20 @@ export function WeeklyCalendar() {
           }
           onPin={
             modalData.mode === 'edit' && modalData.event
-              ? (daysAhead) => {
+              ? (cfg) => {
                   const ev = modalData.event!
                   const start = parseISO(ev.start_datetime)
                   const end = parseISO(ev.end_datetime)
                   const durationMs = end.getTime() - start.getTime()
-                  const promises = Array.from({ length: daysAhead }, (_, i) => {
-                    const newStart = new Date(start.getTime() + (i + 1) * 24 * 60 * 60 * 1000)
+                  let offsets: number[] = []
+                  if (cfg.offsetDays !== undefined) {
+                    offsets = [cfg.offsetDays]
+                  } else if (cfg.repeatWeeks !== undefined) {
+                    const count = cfg.repeatWeeks === 0 ? 52 * 10 : cfg.repeatWeeks
+                    offsets = Array.from({ length: count }, (_, i) => (i + 1) * 7)
+                  }
+                  const promises = offsets.map((days) => {
+                    const newStart = new Date(start.getTime() + days * 24 * 60 * 60 * 1000)
                     const newEnd = new Date(newStart.getTime() + durationMs)
                     return eventsApi.create({
                       title: ev.title,
@@ -1301,10 +1308,10 @@ export function WeeklyCalendar() {
                       location: ev.location,
                     } as Parameters<typeof eventsApi.create>[0])
                   })
-                   Promise.all(promises).then(() => qc.invalidateQueries({ queryKey: ['events'] }))
-                 }
-               : undefined
-           }
+                  Promise.all(promises).then(() => qc.invalidateQueries({ queryKey: ['events'] }))
+                }
+              : undefined
+          }
          />
       )}
 

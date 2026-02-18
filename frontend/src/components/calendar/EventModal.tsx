@@ -25,7 +25,8 @@ interface EventModalProps {
   onClose: () => void
   onSave: (data: Partial<Event>) => void
   onDelete?: () => void
-  onPin?: (daysAhead: number) => void
+  /** offsetDays — jednorazowo za X dni; repeatWeeks — co tydzień przez X tygodni (0 = na zawsze) */
+  onPin?: (cfg: { offsetDays?: number; repeatWeeks?: number }) => void
 }
 
 function toLocalDatetimeInput(isoStr: string): string {
@@ -126,10 +127,11 @@ export function EventModal({
 
   // ── Pin ────────────────────────────────────────────────────────────────────
   const [pinOpen, setPinOpen] = useState(false)
-  const [pinCustomDays, setPinCustomDays] = useState<string>('')
+  const [pinMode, setPinMode] = useState<'once' | 'weekly'>('once')
+  const [pinCustomVal, setPinCustomVal] = useState<string>('')
   const [pinShowCustom, setPinShowCustom] = useState(false)
-  // Przy trybie create: zapamiętaj ile dni do zastosowania po zapisie
-  const [pinDaysOnCreate, setPinDaysOnCreate] = useState<number | null>(null)
+  // tryb create: zapamiętaj config do zastosowania po zapisie
+  const [pinCfgOnCreate, setPinCfgOnCreate] = useState<{ offsetDays?: number; repeatWeeks?: number } | null>(null)
   const pinPanelRef = useRef<HTMLDivElement>(null)
 
   // Zamknij Pin panel klikając poza nim
@@ -139,7 +141,7 @@ export function EventModal({
       if (pinPanelRef.current && !pinPanelRef.current.contains(e.target as Node)) {
         setPinOpen(false)
         setPinShowCustom(false)
-        setPinCustomDays('')
+        setPinCustomVal('')
       }
     }
     document.addEventListener('mousedown', handler)
@@ -153,14 +155,16 @@ export function EventModal({
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
 
-  // days — liczba dni przesunięcia (nie tygodni)
-  const handlePinSelect = (days: number) => {
+  const handlePinSelect = (val: number) => {
+    const cfg = pinMode === 'once'
+      ? { offsetDays: val }
+      : { repeatWeeks: val }
     if (mode === 'edit') {
-      onPin?.(days)
+      onPin?.(cfg)
       setPinOpen(false)
       onClose()
     } else {
-      setPinDaysOnCreate(days)
+      setPinCfgOnCreate(cfg)
       setPinOpen(false)
     }
   }
@@ -179,12 +183,22 @@ export function EventModal({
       icon: icon || undefined,
     }
 
-    if (mode === 'create' && pinDaysOnCreate !== null) {
+    if (mode === 'create' && pinCfgOnCreate !== null) {
       const created = await eventsApi.create(data as Parameters<typeof eventsApi.create>[0])
       const durationMs = new Date(created.end_datetime).getTime() - new Date(created.start_datetime).getTime()
       const start = new Date(created.start_datetime)
-      const promises = Array.from({ length: pinDaysOnCreate }, (_, i) => {
-        const newStart = new Date(start.getTime() + (i + 1) * 24 * 60 * 60 * 1000)
+      const { offsetDays, repeatWeeks } = pinCfgOnCreate
+      let offsets: number[] = []
+      if (offsetDays !== undefined) {
+        // jednorazowo — jedna kopia za X dni
+        offsets = [offsetDays]
+      } else if (repeatWeeks !== undefined) {
+        // co tydzień — repeatWeeks === 0 oznacza "na zawsze" (10 lat)
+        const count = repeatWeeks === 0 ? 52 * 10 : repeatWeeks
+        offsets = Array.from({ length: count }, (_, i) => (i + 1) * 7)
+      }
+      const promises = offsets.map((days) => {
+        const newStart = new Date(start.getTime() + days * 24 * 60 * 60 * 1000)
         const newEnd = new Date(newStart.getTime() + durationMs)
         return eventsApi.create({
           title: created.title,
@@ -205,19 +219,33 @@ export function EventModal({
 
   const accentColor = color
 
-  const PIN_PRESETS = [
-    { d: 1,  label: 'Jutro' },
-    { d: 2,  label: 'Za 2 dni' },
-    { d: 3,  label: 'Za 3 dni' },
-    { d: 7,  label: 'Za tydzień' },
-    { d: 14, label: 'Za 2 tygodnie' },
-    { d: 30, label: 'Za miesiąc' },
+  const PIN_PRESETS_ONCE = [
+    { v: 1,  label: 'Jutro' },
+    { v: 2,  label: 'Za 2 dni' },
+    { v: 3,  label: 'Za 3 dni' },
+    { v: 7,  label: 'Za tydzień' },
+    { v: 14, label: 'Za 2 tygodnie' },
+    { v: 30, label: 'Za miesiąc' },
+  ]
+  const PIN_PRESETS_WEEKLY = [
+    { v: 1,  label: 'Przez 1 tydzień' },
+    { v: 2,  label: 'Przez 2 tygodnie' },
+    { v: 4,  label: 'Przez 4 tygodnie' },
+    { v: 8,  label: 'Przez 8 tygodni' },
+    { v: 12, label: 'Przez 12 tygodni' },
   ]
 
-  const pinDaysLabel = (days: number) => {
-    if (days === 365 * 10) return 'na zawsze'
-    if (days % 7 === 0 && days >= 7) return `${days / 7} tydz.`
-    return `${days} dni`
+  const pinCfgLabel = (cfg: { offsetDays?: number; repeatWeeks?: number }) => {
+    if (cfg.offsetDays !== undefined) {
+      const d = cfg.offsetDays
+      if (d === 1) return 'jutro'
+      if (d % 7 === 0) return `za ${d / 7} tydz.`
+      return `za ${d} dni`
+    }
+    if (cfg.repeatWeeks !== undefined) {
+      return cfg.repeatWeeks === 0 ? 'co tydz. ∞' : `co tydz. ×${cfg.repeatWeeks}`
+    }
+    return ''
   }
 
   const modalRef = useRef<HTMLDivElement>(null)
@@ -403,31 +431,56 @@ export function EventModal({
             >
               <span className="font-medium text-indigo-600 flex items-center gap-1.5">
                 <IconRenderer icon="📌" iconSet={iconSet} size={14} /> Pin — duplikuj wydarzenie
-                {mode === 'create' && pinDaysOnCreate !== null && (
-                  <span className="text-indigo-400 font-normal">· {pinDaysLabel(pinDaysOnCreate)}</span>
+                {mode === 'create' && pinCfgOnCreate !== null && (
+                  <span className="text-indigo-400 font-normal">· {pinCfgLabel(pinCfgOnCreate)}</span>
                 )}
               </span>
               <span className={`text-gray-400 transition-transform duration-200 ${pinOpen ? 'rotate-180' : ''}`}>▾</span>
             </button>
 
             {pinOpen && (
-              <div className="border-t border-gray-100 px-3 py-3 space-y-1">
-                {PIN_PRESETS.map(({ d, label }) => (
+              <div className="border-t border-gray-100 px-3 py-3 space-y-2">
+                {/* Przełącznik trybu */}
+                <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs mb-1">
                   <button
-                    key={d}
-                    onClick={() => handlePinSelect(d)}
+                    type="button"
+                    onClick={() => { setPinMode('once'); setPinShowCustom(false); setPinCustomVal('') }}
+                    className="flex-1 py-1.5 transition-colors"
+                    style={pinMode === 'once' ? { backgroundColor: accentColor, color: 'white' } : { color: '#6b7280' }}
+                  >
+                    Jednorazowo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPinMode('weekly'); setPinShowCustom(false); setPinCustomVal('') }}
+                    className="flex-1 py-1.5 transition-colors"
+                    style={pinMode === 'weekly' ? { backgroundColor: accentColor, color: 'white' } : { color: '#6b7280' }}
+                  >
+                    Co tydzień
+                  </button>
+                </div>
+
+                {/* Presety */}
+                {(pinMode === 'once' ? PIN_PRESETS_ONCE : PIN_PRESETS_WEEKLY).map(({ v, label }) => (
+                  <button
+                    key={v}
+                    onClick={() => handlePinSelect(v)}
                     className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg transition-colors"
                   >
                     {label}
                   </button>
                 ))}
-                {/* Na zawsze */}
-                <button
-                  onClick={() => handlePinSelect(365 * 10)}
-                  className="w-full text-left px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors border-t border-gray-100 pt-2 mt-1"
-                >
-                  <span className="inline-flex items-center gap-1"><IconRenderer icon="♾️" iconSet={iconSet} size={13} /> Na zawsze</span>
-                </button>
+
+                {/* Na zawsze — tylko tryb weekly */}
+                {pinMode === 'weekly' && (
+                  <button
+                    onClick={() => handlePinSelect(0)}
+                    className="w-full text-left px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors border-t border-gray-100 pt-2"
+                  >
+                    <span className="inline-flex items-center gap-1"><IconRenderer icon="♾️" iconSet={iconSet} size={13} /> Na zawsze</span>
+                  </button>
+                )}
+
                 {/* Custom */}
                 {!pinShowCustom ? (
                   <button
@@ -443,24 +496,21 @@ export function EventModal({
                       min={1}
                       max={3650}
                       autoFocus
-                      placeholder="ile dni"
-                      value={pinCustomDays}
-                      onChange={(e) => setPinCustomDays(e.target.value)}
+                      placeholder={pinMode === 'once' ? 'dni' : 'tygodni'}
+                      value={pinCustomVal}
+                      onChange={(e) => setPinCustomVal(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          const d = parseInt(pinCustomDays)
-                          if (d > 0) handlePinSelect(d)
+                          const v = parseInt(pinCustomVal)
+                          if (v > 0) handlePinSelect(v)
                         }
                       }}
                       className="w-20 border border-indigo-300 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
                     />
-                    <span className="text-xs text-gray-500">dni</span>
+                    <span className="text-xs text-gray-500">{pinMode === 'once' ? 'dni' : 'tygodni'}</span>
                     <button
-                      onClick={() => {
-                        const d = parseInt(pinCustomDays)
-                        if (d > 0) handlePinSelect(d)
-                      }}
-                      disabled={!pinCustomDays || parseInt(pinCustomDays) < 1}
+                      onClick={() => { const v = parseInt(pinCustomVal); if (v > 0) handlePinSelect(v) }}
+                      disabled={!pinCustomVal || parseInt(pinCustomVal) < 1}
                       className="text-xs text-white rounded-lg px-3 py-1 disabled:opacity-40 transition-colors"
                       style={{ backgroundColor: accentColor }}
                     >
@@ -559,7 +609,7 @@ export function EventModal({
               style={{ backgroundColor: accentColor }}
             >
               {mode === 'create'
-                ? (pinDaysOnCreate !== null
+                ? (pinCfgOnCreate !== null
                     ? <span className="inline-flex items-center gap-1"><IconRenderer icon="📌" iconSet={iconSet} size={12} />Utwórz + pin</span>
                     : 'Utwórz')
                 : 'Zapisz'}
