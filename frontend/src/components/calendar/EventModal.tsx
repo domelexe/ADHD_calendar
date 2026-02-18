@@ -130,6 +130,8 @@ export function EventModal({
   const [pinMode, setPinMode] = useState<'once' | 'weekly'>('once')
   const [pinCustomVal, setPinCustomVal] = useState<string>('')
   const [pinShowCustom, setPinShowCustom] = useState(false)
+  const [pinShowDate, setPinShowDate] = useState(false)
+  const [pinDateVal, setPinDateVal] = useState<string>('')
   // tryb create: zapamiętaj config do zastosowania po zapisie
   const [pinCfgOnCreate, setPinCfgOnCreate] = useState<{ offsetDays?: number; repeatWeeks?: number } | null>(null)
   const pinPanelRef = useRef<HTMLDivElement>(null)
@@ -141,7 +143,9 @@ export function EventModal({
       if (pinPanelRef.current && !pinPanelRef.current.contains(e.target as Node)) {
         setPinOpen(false)
         setPinShowCustom(false)
+        setPinShowDate(false)
         setPinCustomVal('')
+        setPinDateVal('')
       }
     }
     document.addEventListener('mousedown', handler)
@@ -167,6 +171,27 @@ export function EventModal({
       setPinCfgOnCreate(cfg)
       setPinOpen(false)
     }
+  }
+
+  const handlePinDate = (dateStr: string) => {
+    if (!dateStr) return
+    const target = new Date(dateStr)
+    const eventStart = new Date(startDt)
+    // zerujemy godziny żeby liczyć tylko dni
+    target.setHours(0, 0, 0, 0)
+    eventStart.setHours(0, 0, 0, 0)
+    const diffDays = Math.round((target.getTime() - eventStart.getTime()) / (24 * 60 * 60 * 1000))
+    if (diffDays <= 0) return
+    if (pinMode === 'once') {
+      handlePinSelect(diffDays)
+    } else {
+      // tygodnie pełne do tej daty
+      const weeks = Math.floor(diffDays / 7)
+      if (weeks <= 0) return
+      handlePinSelect(weeks)
+    }
+    setPinShowDate(false)
+    setPinDateVal('')
   }
 
   const handleSave = async () => {
@@ -481,42 +506,79 @@ export function EventModal({
                   </button>
                 )}
 
-                {/* Custom */}
-                {!pinShowCustom ? (
-                  <button
-                    onClick={() => setPinShowCustom(true)}
-                    className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50 rounded-lg transition-colors"
-                  >
-                    <span className="inline-flex items-center gap-1"><IconRenderer icon="✏️" iconSet={iconSet} size={13} /> Custom...</span>
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-2 px-3 pt-1">
-                    <input
-                      type="number"
-                      min={1}
-                      max={3650}
-                      autoFocus
-                      placeholder={pinMode === 'once' ? 'dni' : 'tygodni'}
-                      value={pinCustomVal}
-                      onChange={(e) => setPinCustomVal(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const v = parseInt(pinCustomVal)
-                          if (v > 0) handlePinSelect(v)
-                        }
-                      }}
-                      className="w-20 border border-indigo-300 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                    />
-                    <span className="text-xs text-gray-500">{pinMode === 'once' ? 'dni' : 'tygodni'}</span>
+                {/* Do daty */}
+                <div className="border-t border-gray-100 pt-2 mt-1 space-y-1">
+                  {!pinShowDate ? (
                     <button
-                      onClick={() => { const v = parseInt(pinCustomVal); if (v > 0) handlePinSelect(v) }}
-                      disabled={!pinCustomVal || parseInt(pinCustomVal) < 1}
-                      className="text-xs text-white rounded-lg px-3 py-1 disabled:opacity-40 transition-colors"
-                      style={{ backgroundColor: accentColor }}
+                      onClick={() => { setPinShowDate(true); setPinShowCustom(false) }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50 rounded-lg transition-colors"
                     >
-                      OK
+                      <span className="inline-flex items-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 15 15" fill="none" className="inline"><path d="M4.5 1a.5.5 0 0 1 .5.5V2h5v-.5a.5.5 0 0 1 1 0V2h1.5A1.5 1.5 0 0 1 14 3.5v9a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 1 12.5v-9A1.5 1.5 0 0 1 2.5 2H4v-.5a.5.5 0 0 1 .5-.5zM2 4.5v8a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5v-8H2z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"/></svg>
+                        Do daty...
+                      </span>
                     </button>
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 pt-1">
+                      <input
+                        type="date"
+                        autoFocus
+                        min={format(new Date(new Date(startDt).getTime() + 24*60*60*1000), 'yyyy-MM-dd')}
+                        value={pinDateVal}
+                        onChange={(e) => setPinDateVal(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handlePinDate(pinDateVal) }}
+                        className="flex-1 border border-indigo-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                      />
+                      <button
+                        onClick={() => handlePinDate(pinDateVal)}
+                        disabled={!pinDateVal}
+                        className="text-xs text-white rounded-lg px-3 py-1 disabled:opacity-40 transition-colors"
+                        style={{ backgroundColor: accentColor }}
+                      >
+                        OK
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Custom */}
+                {!pinShowDate && (
+                  !pinShowCustom ? (
+                    <button
+                      onClick={() => setPinShowCustom(true)}
+                      className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      <span className="inline-flex items-center gap-1"><IconRenderer icon="✏️" iconSet={iconSet} size={13} /> Custom...</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 pt-1">
+                      <input
+                        type="number"
+                        min={1}
+                        max={3650}
+                        autoFocus
+                        placeholder={pinMode === 'once' ? 'dni' : 'tygodni'}
+                        value={pinCustomVal}
+                        onChange={(e) => setPinCustomVal(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const v = parseInt(pinCustomVal)
+                            if (v > 0) handlePinSelect(v)
+                          }
+                        }}
+                        className="w-20 border border-indigo-300 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                      />
+                      <span className="text-xs text-gray-500">{pinMode === 'once' ? 'dni' : 'tygodni'}</span>
+                      <button
+                        onClick={() => { const v = parseInt(pinCustomVal); if (v > 0) handlePinSelect(v) }}
+                        disabled={!pinCustomVal || parseInt(pinCustomVal) < 1}
+                        className="text-xs text-white rounded-lg px-3 py-1 disabled:opacity-40 transition-colors"
+                        style={{ backgroundColor: accentColor }}
+                      >
+                        OK
+                      </button>
+                    </div>
+                  )
                 )}
               </div>
             )}
