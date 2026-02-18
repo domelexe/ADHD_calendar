@@ -601,43 +601,41 @@ export function EventModal({
                 </div>
 
                 {/* Custom */}
-                {!pinShowDate && (
-                  !pinShowCustom ? (
+                {!pinShowCustom ? (
+                  <button
+                    onClick={() => { setPinShowCustom(true); setPinShowDate(false) }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50 rounded-lg transition-colors"
+                  >
+                    <span className="inline-flex items-center gap-1"><IconRenderer icon="✏️" iconSet={iconSet} size={13} /> Custom...</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 pt-1">
+                    <input
+                      type="number"
+                      min={1}
+                      max={3650}
+                      autoFocus
+                      placeholder={pinMode === 'once' ? 'dni' : 'tygodni'}
+                      value={pinCustomVal}
+                      onChange={(e) => setPinCustomVal(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const v = parseInt(pinCustomVal)
+                          if (v > 0) handlePinSelect(v)
+                        }
+                      }}
+                      className="w-20 border border-indigo-300 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    />
+                    <span className="text-xs text-gray-500">{pinMode === 'once' ? 'dni' : 'tygodni'}</span>
                     <button
-                      onClick={() => setPinShowCustom(true)}
-                      className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50 rounded-lg transition-colors"
+                      onClick={() => { const v = parseInt(pinCustomVal); if (v > 0) handlePinSelect(v) }}
+                      disabled={!pinCustomVal || parseInt(pinCustomVal) < 1}
+                      className="text-xs text-white rounded-lg px-3 py-1 disabled:opacity-40 transition-colors"
+                      style={{ backgroundColor: accentColor }}
                     >
-                      <span className="inline-flex items-center gap-1"><IconRenderer icon="✏️" iconSet={iconSet} size={13} /> Custom...</span>
+                      OK
                     </button>
-                  ) : (
-                    <div className="flex items-center gap-2 px-3 pt-1">
-                      <input
-                        type="number"
-                        min={1}
-                        max={3650}
-                        autoFocus
-                        placeholder={pinMode === 'once' ? 'dni' : 'tygodni'}
-                        value={pinCustomVal}
-                        onChange={(e) => setPinCustomVal(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            const v = parseInt(pinCustomVal)
-                            if (v > 0) handlePinSelect(v)
-                          }
-                        }}
-                        className="w-20 border border-indigo-300 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                      />
-                      <span className="text-xs text-gray-500">{pinMode === 'once' ? 'dni' : 'tygodni'}</span>
-                      <button
-                        onClick={() => { const v = parseInt(pinCustomVal); if (v > 0) handlePinSelect(v) }}
-                        disabled={!pinCustomVal || parseInt(pinCustomVal) < 1}
-                        className="text-xs text-white rounded-lg px-3 py-1 disabled:opacity-40 transition-colors"
-                        style={{ backgroundColor: accentColor }}
-                      >
-                        OK
-                      </button>
-                    </div>
-                  )
+                  </div>
                 )}
               </div>
             )}
