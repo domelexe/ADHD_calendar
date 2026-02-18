@@ -8,7 +8,8 @@ from app.core.security import verify_password, create_access_token, get_password
 from app.db.base import get_db
 from app.models.invite_token import InviteToken
 from app.models.user import User
-from app.schemas.user import Token, UserOut, UserRegister
+from app.api.deps import get_current_user
+from app.schemas.user import ChangePassword, Token, UserOut, UserRegister
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -76,6 +77,25 @@ def register(
 
 
 @router.get("/me", response_model=UserOut)
-def get_me(db: Session = Depends(get_db), token: str = ""):
-    # Simplified — actual auth is via deps.get_current_user
-    pass
+def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.post("/change-password", status_code=204)
+def change_password(
+    payload: ChangePassword,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+    if len(payload.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 8 characters",
+        )
+    current_user.hashed_password = get_password_hash(payload.new_password)
+    db.commit()

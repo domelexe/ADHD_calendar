@@ -1,4 +1,4 @@
-"""Seed the database with demo user and activity templates."""
+"""Seed the database with admin user and default activity templates."""
 
 from datetime import datetime, timezone
 
@@ -33,37 +33,21 @@ def seed():
                 created_at=datetime.now(timezone.utc),
             )
             db.add(admin)
-            db.commit()
-            print("Admin user created.")
-        else:
-            print("Admin user already exists — skipping.")
-
-        # Create demo user if not exists
-        user = db.query(User).filter(User.email == settings.DEMO_USER_EMAIL).first()
-        if not user:
-            print(f"Creating demo user: {settings.DEMO_USER_EMAIL}")
-            user = User(
-                email=settings.DEMO_USER_EMAIL,
-                hashed_password=get_password_hash(settings.DEMO_USER_PASSWORD),
-                preferences={},
-                created_at=datetime.now(timezone.utc),
-            )
-            db.add(user)
             db.flush()
 
-            # Add activity templates
+            # Add default activity templates for admin
             for tmpl in SEED_TEMPLATES:
                 db.add(
                     ActivityTemplate(
                         **tmpl,
-                        user_id=user.id,
+                        user_id=admin.id,
                         created_at=datetime.now(timezone.utc),
                     )
                 )
             db.commit()
-            print("Seed completed.")
+            print("Admin user created with default templates.")
         else:
-            print("Demo user already exists — skipping seed.")
+            print("Admin user already exists — skipping.")
     finally:
         db.close()
 

@@ -1,19 +1,28 @@
-"""Admin endpoints — invite token management."""
+"""Admin endpoints — user management and invite token management."""
 
 import secrets
 from datetime import datetime, timezone
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin_user
+from app.core.security import get_password_hash
 from app.db.base import get_db
 from app.models.invite_token import InviteToken
 from app.models.user import User
-from app.schemas.user import InviteTokenBatchCreate, InviteTokenOut
+from app.schemas.user import (
+    AdminUpdateUser,
+    InviteTokenBatchCreate,
+    InviteTokenOut,
+    UserOutAdmin,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+# ── Invite tokens ──────────────────────────────────────────────────────────────
 
 
 @router.post("/invite-tokens", response_model=List[InviteTokenOut])
@@ -45,3 +54,86 @@ def list_invite_tokens(
 ):
     """Lista wszystkich tokenów (dla admina)."""
     return db.query(InviteToken).order_by(InviteToken.created_at.desc()).all()
+
+
+@router.delete("/invite-tokens/{token}", status_code=204)
+def delete_invite_token(
+    token: str,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_current_admin_user),
+):
+    """Usuwa token zaproszenia (tylko nieużyty)."""
+    invite = db.query(InviteToken).filter(InviteToken.token == token).first()
+    if not invite:
+        raise HTTPException(status_code=404, detail="Token not found")
+    if invite.used:
+        raise HTTPException(status_code=400, detail="Cannot delete used token")
+    db.delete(invite)
+    db.commit()
+
+
+# ── Users ──────────────────────────────────────────────────────────────────────
+
+
+@router.get("/users", response_model=List[UserOutAdmin])
+def list_users(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_current_admin_user),
+):
+    """Lista wszystkich użytkowników."""
+    return db.query(User).order_by(User.created_at).all()
+
+
+@router.patch("/users/{user_id}", response_model=UserOutAdmin)
+def update_user(
+    user_id: int,
+    payload: AdminUpdateUser,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    """Zmiana emaila, uprawnień lub hasła użytkownika."""
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.email is not None:
+        # Sprawdź czy email nie jest zajęty przez kogoś innego
+        existing = db.query(User).filter(User.email == payload.email).first()
+        if existing and existing.id != user_id:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        user.email = payload.email
+
+    if payload.is_admin is not None:
+        # Nie można odebrać admina samemu sobie
+        if user_id == admin.id and not payload.is_admin:
+            raise HTTPException(
+                status_code=400, detail="Cannot remove your own admin privileges"
+            )
+        user.is_admin = payload.is_admin
+
+    if payload.new_password is not None:
+        if len(payload.new_password) < 8:
+            raise HTTPException(
+                status_code=400, detail="Password must be at least 8 characters"
+            )
+        user.hashed_password = get_password_hash(payload.new_password)
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.delete("/users/{user_id}", status_code=204)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    """Usuwa użytkownika i wszystkie jego dane."""
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(user)
+    db.commit()

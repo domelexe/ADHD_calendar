@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useCalendarStore, ViewMode, FirstDayOfWeek } from '../../store/calendarStore'
 import { ICON_SETS } from '../../lib/iconSets'
 import { IconRenderer, formatIconId } from '../ui/IconRenderer'
+import { changePassword } from '../../api/auth'
 
 const HOUR_OPTIONS = Array.from({ length: 25 }, (_, i) => i) // 0–24
 
@@ -17,6 +18,32 @@ export function SettingsOverlay({ onClose }: { onClose: () => void }) {
   } = useCalendarStore()
 
   const [hoursExpanded, setHoursExpanded] = useState(false)
+
+  // Zmiana hasła
+  const [pwCurrent, setPwCurrent] = useState('')
+  const [pwNew, setPwNew] = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
+  const [pwError, setPwError] = useState<string | null>(null)
+  const [pwSuccess, setPwSuccess] = useState(false)
+  const [pwLoading, setPwLoading] = useState(false)
+
+  async function handleChangePassword() {
+    setPwError(null)
+    setPwSuccess(false)
+    if (pwNew.length < 8) { setPwError('Nowe hasło musi mieć co najmniej 8 znaków'); return }
+    if (pwNew !== pwConfirm) { setPwError('Hasła nie są identyczne'); return }
+    setPwLoading(true)
+    try {
+      await changePassword(pwCurrent, pwNew)
+      setPwSuccess(true)
+      setPwCurrent(''); setPwNew(''); setPwConfirm('')
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setPwError(msg ?? 'Błąd zmiany hasła')
+    } finally {
+      setPwLoading(false)
+    }
+  }
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -268,6 +295,43 @@ export function SettingsOverlay({ onClose }: { onClose: () => void }) {
             </button>
           </section>
 
+
+          {/* ── Zmiana hasła ── */}
+          <section>
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Zmiana hasła</h3>
+            <div className="space-y-2">
+              <input
+                type="password"
+                placeholder="Aktualne hasło"
+                value={pwCurrent}
+                onChange={e => setPwCurrent(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+              <input
+                type="password"
+                placeholder="Nowe hasło (min. 8 znaków)"
+                value={pwNew}
+                onChange={e => setPwNew(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+              <input
+                type="password"
+                placeholder="Powtórz nowe hasło"
+                value={pwConfirm}
+                onChange={e => setPwConfirm(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+              {pwError && <p className="text-xs text-red-500">{pwError}</p>}
+              {pwSuccess && <p className="text-xs text-green-600">Hasło zostało zmienione.</p>}
+              <button
+                onClick={handleChangePassword}
+                disabled={pwLoading || !pwCurrent || !pwNew || !pwConfirm}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl py-2 text-sm font-semibold transition-colors"
+              >
+                {pwLoading ? 'Zapisywanie…' : 'Zmień hasło'}
+              </button>
+            </div>
+          </section>
 
         </div>
 

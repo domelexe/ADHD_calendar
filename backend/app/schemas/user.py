@@ -43,3 +43,23 @@ class InviteTokenOut(BaseModel):
 
 class InviteTokenBatchCreate(BaseModel):
     count: int = 1  # ile tokenów wygenerować (1–100)
+
+
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class AdminUpdateUser(BaseModel):
+    email: Optional[str] = None
+    is_admin: Optional[bool] = None
+    new_password: Optional[str] = None
+
+
+class UserOutAdmin(BaseModel):
+    id: int
+    email: str
+    is_admin: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

@@ -13,7 +13,9 @@ import { tasksApi } from '../../api/tasks'
 import { EventModal } from './EventModal'
 import { IconRenderer } from '../ui/IconRenderer'
 import { SettingsOverlay } from '../ui/SettingsOverlay'
+import { AdminPanel } from '../ui/AdminPanel'
 import { BestiaryOverlay } from '../bestiary/Bestiary'
+import { getMe } from '../../api/auth'
 
 const HOUR_HEIGHT = 60  // px na godzinę
 
@@ -924,7 +926,14 @@ export function WeeklyCalendar() {
     defaultTemplateId?: number
   } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [bestiaryContactId, setBestiaryContactId] = useState<number | null>(null)
+
+  // Pobierz info o aktualnym użytkowniku (is_admin)
+  useEffect(() => {
+    getMe().then(me => setIsAdmin(me.is_admin)).catch(() => {})
+  }, [])
   const [bdPopover, setBdPopover] = useState<{ contacts: typeof contacts; rect: DOMRect } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const calendarWrapRef = useRef<HTMLDivElement>(null)
@@ -1125,6 +1134,16 @@ export function WeeklyCalendar() {
           >
             Dziś
           </button>
+          {/* Przycisk panelu admina — widoczny tylko dla adminów */}
+          {isAdmin && (
+            <button
+              onClick={() => setAdminOpen(true)}
+              title="Panel administratora"
+              className={`w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors ${adminOpen ? 'bg-gray-100' : ''}`}
+            >
+              <IconRenderer icon="🛡️" iconSet={iconSet} size={16} />
+            </button>
+          )}
           {/* Przycisk ustawień — otwiera overlay */}
           <button
             onClick={() => setSettingsOpen(true)}
@@ -1283,6 +1302,11 @@ export function WeeklyCalendar() {
       {/* Overlay ustawień */}
       {settingsOpen && (
         <SettingsOverlay onClose={() => setSettingsOpen(false)} />
+      )}
+
+      {/* Panel admina */}
+      {adminOpen && (
+        <AdminPanel onClose={() => setAdminOpen(false)} />
       )}
 
       {/* Bestiary otwarty na konkretnym kontakcie */}

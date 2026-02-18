@@ -8,8 +8,6 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
 
-    DEMO_USER_EMAIL: str = "demo@adhd.local"
-    DEMO_USER_PASSWORD: str = "demo1234"
     ADMIN_EMAIL: str = "admin@adhd.local"
     ADMIN_PASSWORD: str = "changeme_admin"
 
