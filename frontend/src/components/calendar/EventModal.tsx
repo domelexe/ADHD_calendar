@@ -215,12 +215,14 @@ export function EventModal({
     { w: 12, label: '12 tygodni do przodu' },
   ]
 
+  const modalRef = useRef<HTMLDivElement>(null)
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
+      <div ref={modalRef} className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
         {/* Header — biały z kolorowym paskiem po lewej */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -267,6 +269,7 @@ export function EventModal({
             value={description}
             onChange={setDescription}
             accentColor={accentColor}
+            modalRef={modalRef}
           />
 
           {/* ── Ikona + Kolor w jednym wierszu ── */}
@@ -565,18 +568,52 @@ export function EventModal({
 
 // ── DescriptionField — klikalne pole otwierające duży edytor popup ────────────
 
+const DESC_PANEL_WIDTH = 360
+const DESC_PANEL_GAP = 12
+
 function DescriptionField({
   value,
   onChange,
   accentColor,
+  modalRef,
 }: {
   value: string
   onChange: (v: string) => void
   accentColor: string
+  modalRef: React.RefObject<HTMLDivElement>
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({})
+
+  function computePosition() {
+    const modal = modalRef.current
+    if (!modal) return
+    const rect = modal.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const panelH = Math.min(460, vh - 32)
+
+    // Pionowo: wyrównaj górę panelu do góry modalu, ale nie wychodź poza ekran
+    const top = Math.max(16, Math.min(rect.top, vh - panelH - 16))
+
+    // Poziomo: preferuj prawą stronę, fallback lewa
+    const spaceRight = vw - rect.right - DESC_PANEL_GAP
+    const spaceLeft = rect.left - DESC_PANEL_GAP
+
+    let left: number
+    if (spaceRight >= DESC_PANEL_WIDTH) {
+      left = rect.right + DESC_PANEL_GAP
+    } else if (spaceLeft >= DESC_PANEL_WIDTH) {
+      left = rect.left - DESC_PANEL_GAP - DESC_PANEL_WIDTH
+    } else {
+      // Brak miejsca po bokach — wyśrodkuj pionowo nad modalem
+      left = Math.max(16, (vw - DESC_PANEL_WIDTH) / 2)
+    }
+
+    setPanelStyle({ position: 'fixed', top, left, width: DESC_PANEL_WIDTH, height: panelH, zIndex: 200 })
+  }
 
   function openEditor() {
     setDraft(value)
@@ -592,14 +629,14 @@ function DescriptionField({
     setOpen(false)
   }
 
-  // Fokus na textarea po otwarciu
   useEffect(() => {
     if (open) {
+      computePosition()
       setTimeout(() => textareaRef.current?.focus(), 50)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  // Escape zamyka bez zapisywania
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
@@ -641,60 +678,55 @@ function DescriptionField({
         <span className="absolute bottom-2 right-3 text-xs text-gray-300">kliknij aby edytować</span>
       </div>
 
-      {/* Popup — duży edytor po prawej stronie modalu eventu */}
+      {/* Popup — pozycjonowany dynamicznie obok modalu */}
       {open && createPortal(
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4 pointer-events-none"
-          onClick={(e) => { if (e.target === e.currentTarget) cancel() }}
-        >
-          {/* Wrapper wyrównany do środka jak modal eventu, ale poszerzony o panel boczny */}
-          <div className="flex items-stretch gap-3 pointer-events-auto" style={{ maxHeight: '80vh' }}>
-
-            {/* Wypełniacz — taka sama szerokość jak modal eventu (max-w-md = 448px) */}
-            <div style={{ width: '448px', flexShrink: 0 }} />
-
-            {/* Panel opisu — po prawej */}
-            <div
-              className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-              style={{ width: '380px', maxHeight: '80vh' }}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-                <span className="text-sm font-semibold text-gray-700">Opis wydarzenia</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 hidden sm:block">Ctrl+Enter · Esc</span>
-                  <button onClick={cancel} className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1">✕</button>
-                </div>
-              </div>
-
-              {/* Textarea */}
-              <textarea
-                ref={textareaRef}
-                value={draft}
-                onChange={e => setDraft(e.target.value)}
-                className="flex-1 w-full px-5 py-4 text-sm text-gray-900 resize-none focus:outline-none"
-                placeholder="Notatki, wskazówki, linki…"
-              />
-
-              {/* Footer */}
-              <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100">
-                <button
-                  onClick={cancel}
-                  className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-                >
-                  Anuluj
-                </button>
-                <button
-                  onClick={confirm}
-                  className="px-4 py-2 text-sm text-white rounded-xl font-semibold transition-colors"
-                  style={{ backgroundColor: accentColor }}
-                >
-                  Zapisz opis
-                </button>
+        <>
+          {/* Niewidzialny backdrop tylko do zamknięcia kliknięciem poza */}
+          <div
+            className="fixed inset-0 z-[199]"
+            onClick={cancel}
+          />
+          {/* Panel */}
+          <div
+            className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden z-[200]"
+            style={panelStyle}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
+              <span className="text-sm font-semibold text-gray-700">Opis</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Ctrl+Enter · Esc</span>
+                <button onClick={cancel} className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1">✕</button>
               </div>
             </div>
+
+            {/* Textarea */}
+            <textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              className="flex-1 w-full px-4 py-3 text-sm text-gray-900 resize-none focus:outline-none"
+              placeholder="Notatki, wskazówki, linki…"
+            />
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-gray-100 shrink-0">
+              <button
+                onClick={cancel}
+                className="px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={confirm}
+                className="px-3 py-1.5 text-sm text-white rounded-xl font-semibold transition-colors"
+                style={{ backgroundColor: accentColor }}
+              >
+                Zapisz
+              </button>
+            </div>
           </div>
-        </div>,
+        </>,
         document.body,
       )}
     </>
