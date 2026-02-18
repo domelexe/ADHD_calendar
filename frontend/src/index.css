@@ -38,3 +38,28 @@
     background: #9ca3af;
   }
 }
+
+/* ── Markdown prose w panelu opisu ── */
+.prose h1, .prose h2, .prose h3 {
+  font-weight: 700;
+  margin: 0.5em 0 0.25em;
+}
+.prose h1 { font-size: 1.1em; }
+.prose h2 { font-size: 1em; }
+.prose h3 { font-size: 0.95em; }
+.prose p { margin: 0.25em 0; }
+.prose ul, .prose ol { padding-left: 1.25em; margin: 0.25em 0; }
+.prose li { margin: 0.1em 0; }
+.prose strong { font-weight: 700; }
+.prose em { font-style: italic; }
+.prose u { text-decoration: underline; }
+.prose code { background: #f3f4f6; border-radius: 3px; padding: 0 3px; font-size: 0.85em; font-family: monospace; }
+.prose hr { border: none; border-top: 1px solid #e5e7eb; margin: 0.5em 0; }
+.prose a { color: #6366f1; text-decoration: underline; }
+.prose blockquote { border-left: 3px solid #e5e7eb; padding-left: 0.75em; color: #6b7280; margin: 0.25em 0; }
+
+/* Checkboxy w markdown */
+.prose li.md-task { list-style: none; margin-left: -1em; }
+.prose li.md-task label { display: flex; align-items: center; gap: 0.4em; cursor: default; }
+.prose li.md-task input[type=checkbox] { width: 14px; height: 14px; accent-color: #6366f1; cursor: default; }
+.prose li.md-task.done label { text-decoration: line-through; color: #9ca3af; }

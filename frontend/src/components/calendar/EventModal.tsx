@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { marked } from 'marked'
 import { format } from 'date-fns'
 import { Event, ActivityTemplate } from '../../types'
 import { eventsApi } from '../../api/events'
@@ -571,6 +572,52 @@ export function EventModal({
 const DESC_PANEL_WIDTH = 360
 const DESC_PANEL_GAP = 12
 
+// Konfiguracja przycisków toolbaru
+const TOOLBAR_BUTTONS = [
+  { label: '☑', title: 'Lista zadań', prefix: '- [ ] ', suffix: '', block: true },
+  { label: 'B', title: 'Pogrubienie (Ctrl+B)', prefix: '**', suffix: '**', bold: true },
+  { label: 'I', title: 'Kursywa (Ctrl+I)', prefix: '_', suffix: '_', italic: true },
+  { label: 'U', title: 'Podkreślenie', prefix: '<u>', suffix: '</u>', underline: true },
+  { label: '—', title: 'Separator', prefix: '\n---\n', suffix: '', block: true },
+] as const
+
+function applyFormat(
+  textarea: HTMLTextAreaElement,
+  prefix: string,
+  suffix: string,
+  block: boolean,
+  setText: (v: string) => void,
+) {
+  const { selectionStart: ss, selectionEnd: se, value } = textarea
+  const selected = value.slice(ss, se)
+
+  let inserted: string
+  let cursorOffset: number
+
+  if (block) {
+    // Wstaw na początku linii lub jako nową linię
+    inserted = prefix + (selected || '') + suffix
+    cursorOffset = prefix.length
+  } else {
+    inserted = prefix + (selected || '') + suffix
+    cursorOffset = selected ? inserted.length : prefix.length
+  }
+
+  const newVal = value.slice(0, ss) + inserted + value.slice(se)
+  setText(newVal)
+
+  // Przywróć fokus i pozycję kursora
+  requestAnimationFrame(() => {
+    textarea.focus()
+    if (selected) {
+      textarea.setSelectionRange(ss, ss + inserted.length)
+    } else {
+      const pos = ss + cursorOffset
+      textarea.setSelectionRange(pos, pos)
+    }
+  })
+}
+
 function DescriptionField({
   value,
   onChange,
@@ -584,39 +631,34 @@ function DescriptionField({
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
+  const [tab, setTab] = useState<'edit' | 'preview'>('edit')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({})
 
-  function computePosition() {
+  const computePosition = useCallback(() => {
     const modal = modalRef.current
     if (!modal) return
     const rect = modal.getBoundingClientRect()
     const vw = window.innerWidth
     const vh = window.innerHeight
-    const panelH = Math.min(460, vh - 32)
-
-    // Pionowo: wyrównaj górę panelu do góry modalu, ale nie wychodź poza ekran
+    const panelH = Math.min(500, vh - 32)
     const top = Math.max(16, Math.min(rect.top, vh - panelH - 16))
-
-    // Poziomo: preferuj prawą stronę, fallback lewa
     const spaceRight = vw - rect.right - DESC_PANEL_GAP
     const spaceLeft = rect.left - DESC_PANEL_GAP
-
     let left: number
     if (spaceRight >= DESC_PANEL_WIDTH) {
       left = rect.right + DESC_PANEL_GAP
     } else if (spaceLeft >= DESC_PANEL_WIDTH) {
       left = rect.left - DESC_PANEL_GAP - DESC_PANEL_WIDTH
     } else {
-      // Brak miejsca po bokach — wyśrodkuj pionowo nad modalem
       left = Math.max(16, (vw - DESC_PANEL_WIDTH) / 2)
     }
-
     setPanelStyle({ position: 'fixed', top, left, width: DESC_PANEL_WIDTH, height: panelH, zIndex: 200 })
-  }
+  }, [modalRef])
 
   function openEditor() {
     setDraft(value)
+    setTab('edit')
     setOpen(true)
   }
 
@@ -634,22 +676,45 @@ function DescriptionField({
       computePosition()
       setTimeout(() => textareaRef.current?.focus(), 50)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, computePosition])
 
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') cancel()
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) confirm()
+      // Skróty klawiszowe w trybie edycji
+      if (tab === 'edit' && textareaRef.current === document.activeElement) {
+        if (e.key === 'b' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault()
+          applyFormat(textareaRef.current!, '**', '**', false, setDraft)
+        }
+        if (e.key === 'i' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault()
+          applyFormat(textareaRef.current!, '_', '_', false, setDraft)
+        }
+      }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, draft])
+  }, [open, draft, tab])
+
+  // Renderuj markdown do HTML (synchronicznie)
+  const previewHtml = useMemo(() => {
+    if (!draft.trim()) return ''
+    // Zamień - [ ] i - [x] na checkboxy HTML
+    const withCheckboxes = draft
+      .replace(/^- \[x\] (.+)$/gm, '<li class="md-task done"><label><input type="checkbox" checked disabled> $1</label></li>')
+      .replace(/^- \[ \] (.+)$/gm, '<li class="md-task"><label><input type="checkbox" disabled> $1</label></li>')
+    const result = marked.parse(withCheckboxes)
+    return typeof result === 'string' ? result : ''
+  }, [draft])
 
   const preview = value.trim()
-  const lines = preview.split('\n').filter(Boolean)
+  const lines = preview.split('\n').filter(l => l && !l.startsWith('- ['))
+  const checkboxLines = preview.split('\n').filter(l => /^- \[.\]/.test(l))
+  const doneCount = preview.split('\n').filter(l => /^- \[x\]/.test(l)).length
 
   return (
     <>
@@ -663,15 +728,22 @@ function DescriptionField({
         style={{ borderColor: open ? accentColor : '' }}
       >
         <span className="absolute top-2 left-3 text-xs font-medium text-gray-400">Opis</span>
-        {lines.length === 0 ? (
+        {!preview ? (
           <span className="text-gray-300 text-sm">Notatki, wskazówki…</span>
         ) : (
           <div className="space-y-0.5">
-            {lines.slice(0, 4).map((line, i) => (
-              <div key={i} className="truncate text-sm text-gray-700">{line}</div>
+            {checkboxLines.length > 0 && (
+              <div className="text-xs text-gray-500">
+                ☑ {doneCount}/{checkboxLines.length} zadań
+              </div>
+            )}
+            {lines.slice(0, 3).map((line, i) => (
+              <div key={i} className="truncate text-sm text-gray-700">
+                {line.replace(/[*_`#>]/g, '').replace(/<[^>]+>/g, '')}
+              </div>
             ))}
-            {lines.length > 4 && (
-              <div className="text-xs text-gray-400">+{lines.length - 4} więcej…</div>
+            {(lines.length > 3 || checkboxLines.length > 0) && lines.length > 3 && (
+              <div className="text-xs text-gray-400">+{lines.length - 3} więcej…</div>
             )}
           </div>
         )}
@@ -681,33 +753,70 @@ function DescriptionField({
       {/* Popup — pozycjonowany dynamicznie obok modalu */}
       {open && createPortal(
         <>
-          {/* Niewidzialny backdrop tylko do zamknięcia kliknięciem poza */}
-          <div
-            className="fixed inset-0 z-[199]"
-            onClick={cancel}
-          />
-          {/* Panel */}
+          <div className="fixed inset-0 z-[199]" onClick={cancel} />
           <div
             className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden z-[200]"
             style={panelStyle}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
-              <span className="text-sm font-semibold text-gray-700">Opis</span>
+            {/* Header z zakładkami */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 shrink-0">
+              <div className="flex gap-1">
+                {(['edit', 'preview'] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTab(t)}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                      tab === t ? 'bg-gray-100 text-gray-800' : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    {t === 'edit' ? 'Edytuj' : 'Podgląd'}
+                  </button>
+                ))}
+              </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">Ctrl+Enter · Esc</span>
-                <button onClick={cancel} className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1">✕</button>
+                <span className="text-xs text-gray-300">Ctrl+Enter · Esc</span>
+                <button onClick={cancel} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
               </div>
             </div>
 
-            {/* Textarea */}
-            <textarea
-              ref={textareaRef}
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              className="flex-1 w-full px-4 py-3 text-sm text-gray-900 resize-none focus:outline-none"
-              placeholder="Notatki, wskazówki, linki…"
-            />
+            {/* Toolbar — widoczny tylko w trybie edycji */}
+            {tab === 'edit' && (
+              <div className="flex items-center gap-1 px-3 py-1.5 border-b border-gray-100 shrink-0 bg-gray-50">
+                {TOOLBAR_BUTTONS.map((btn) => (
+                  <button
+                    key={btn.label}
+                    title={btn.title}
+                    onMouseDown={(e) => {
+                      e.preventDefault() // nie trać fokusa z textarea
+                      if (textareaRef.current) {
+                        applyFormat(textareaRef.current, btn.prefix, btn.suffix, !!btn.block, setDraft)
+                      }
+                    }}
+                    className={`w-8 h-7 flex items-center justify-center rounded text-sm transition-colors hover:bg-gray-200 text-gray-700 ${
+                      'bold' in btn ? 'font-bold' : ''
+                    } ${'italic' in btn ? 'italic' : ''} ${'underline' in btn ? 'underline' : ''}`}
+                  >
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Treść — edytor lub podgląd */}
+            {tab === 'edit' ? (
+              <textarea
+                ref={textareaRef}
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                className="flex-1 w-full px-4 py-3 text-sm text-gray-900 resize-none focus:outline-none font-mono"
+                placeholder="Notatki, wskazówki, linki…&#10;&#10;- [ ] Zadanie do zrobienia&#10;**pogrubienie**, _kursywa_"
+              />
+            ) : (
+              <div
+                className="flex-1 overflow-y-auto px-4 py-3 text-sm text-gray-800 prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: previewHtml || '<p class="text-gray-300">Brak treści</p>' }}
+              />
+            )}
 
             {/* Footer */}
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-gray-100 shrink-0">
