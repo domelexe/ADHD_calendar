@@ -168,14 +168,9 @@ export function EventModal({
     const cfg = pinMode === 'once'
       ? { offsetDays: val }
       : { repeatWeeks: val }
-    if (mode === 'edit') {
-      onPin?.(cfg)
-      setPinOpen(false)
-      onClose()
-    } else {
-      setPinCfgOnCreate(cfg)
-      setPinOpen(false)
-    }
+    // W obu trybach tylko zapamiętaj — wykona się po kliknięciu Zapisz/Utwórz
+    setPinCfgOnCreate(cfg)
+    setPinOpen(false)
   }
 
   const handlePinDate = () => {
@@ -220,6 +215,13 @@ export function EventModal({
       is_background: isBackground,
       color,
       icon: icon || undefined,
+    }
+
+    if (pinCfgOnCreate !== null && mode === 'edit') {
+      // edit: najpierw zapisz zmiany, potem wykonaj pin
+      onSave(data)
+      onPin?.(pinCfgOnCreate)
+      return
     }
 
     if (mode === 'create' && pinCfgOnCreate !== null) {
@@ -735,7 +737,9 @@ export function EventModal({
                 ? (pinCfgOnCreate !== null
                     ? <span className="inline-flex items-center gap-1"><IconRenderer icon="📌" iconSet={iconSet} size={12} />Utwórz + pin</span>
                     : 'Utwórz')
-                : 'Zapisz'}
+                : (pinCfgOnCreate !== null
+                    ? <span className="inline-flex items-center gap-1"><IconRenderer icon="📌" iconSet={iconSet} size={12} />Zapisz + pin</span>
+                    : 'Zapisz')}
             </button>
           </div>
         </div>
