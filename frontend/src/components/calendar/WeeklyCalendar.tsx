@@ -237,7 +237,8 @@ function EventTooltip({
     : `${mins}min`
 
   const color = event.color ?? event.activity_template?.color ?? '#6366f1'
-  const desc = event.description?.trim() || event.activity_template?.description?.trim()
+  const rawDesc = event.description?.trim() || event.activity_template?.description?.trim()
+  const desc = rawDesc ? rawDesc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : undefined
 
   return createPortal(
     <div className="fixed z-[200] pointer-events-none" style={{ left, top, maxWidth: TIP_W }}>
