@@ -1,10 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { RichTextEditor } from './RichTextEditor'
-
-export function isEmptyHtml(html: string): boolean {
-  return !html || html === '<p></p>' || html.trim() === ''
-}
+import { isEmptyHtml } from '../../lib/htmlUtils'
 
 const DESC_PANEL_WIDTH = 380
 const DESC_PANEL_GAP = 12
@@ -77,8 +74,6 @@ export function DescriptionField({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  // Podgląd — strip HTML tagów
-  const previewText = value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
   const hasContent = !isEmptyHtml(value)
 
   // Policz checkboxy
@@ -87,28 +82,25 @@ export function DescriptionField({
 
   return (
     <>
-      {/* Podgląd — klikalne pole */}
-      <div
-        role="button"
-        tabIndex={0}
+      {/* Przycisk otwierający edytor */}
+      <button
+        type="button"
         onClick={openEditor}
-        onKeyDown={e => e.key === 'Enter' && openEditor()}
-        className="relative w-full border border-gray-200 rounded-xl px-3 pt-6 pb-2 text-sm cursor-pointer hover:border-gray-300 transition-colors min-h-[72px]"
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors text-left"
         style={{ borderColor: open ? accentColor : '' }}
       >
-        <span className="absolute top-2 left-3 text-xs font-medium text-gray-400">Opis</span>
-        {!hasContent ? (
-          <span className="text-gray-300 text-sm">Notatki, wskazówki…</span>
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none" className="shrink-0 text-gray-400">
+          <path d="M11.8536 1.14645C11.6583 0.951184 11.3417 0.951184 11.1465 1.14645L3.71455 8.57836C3.62459 8.66832 3.56263 8.78255 3.53552 8.90704L3.02943 11.2524C2.98802 11.4412 3.04719 11.6387 3.18536 11.7769C3.32352 11.915 3.52105 11.9742 3.70978 11.9328L6.05524 11.4267C6.17972 11.3996 6.29396 11.3376 6.38392 11.2477L13.8158 3.81573C14.0111 3.62047 14.0111 3.30389 13.8158 3.10863L11.8536 1.14645ZM4.66541 9.37884L11.5 2.54424L12.4558 3.50003L5.62118 10.3346L4.23667 10.6457L4.66541 9.37884Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"/>
+        </svg>
+        <span className="text-xs font-medium text-gray-500">Opis</span>
+        {hasContent ? (
+          <span className="text-xs text-gray-400 ml-auto">
+            {totalTasks > 0 ? `☑ ${doneTasks}/${totalTasks} zadań` : 'wypełniony'}
+          </span>
         ) : (
-          <div className="space-y-0.5">
-            {totalTasks > 0 && (
-              <div className="text-xs text-gray-500">☑ {doneTasks}/{totalTasks} zadań</div>
-            )}
-            <div className="text-sm text-gray-700 line-clamp-3">{previewText}</div>
-          </div>
+          <span className="text-xs text-gray-300 ml-auto">puste</span>
         )}
-        <span className="absolute bottom-2 right-3 text-xs text-gray-300">kliknij aby edytować</span>
-      </div>
+      </button>
 
       {/* Popup WYSIWYG — pozycjonowany dynamicznie obok modalu */}
       {open && createPortal(
